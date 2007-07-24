@@ -1,0 +1,210 @@
+// Microsoft Visual C++ generated resource script.
+//
+#include "resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#include "afxres.h"
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// 日本語 resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_JPN)
+#ifdef _WIN32
+LANGUAGE LANG_JAPANESE, SUBLANG_DEFAULT
+#pragma code_page(932)
+#endif //_WIN32
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "#include ""afxres.h""\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE 
+BEGIN
+    "#define _AFX_NO_SPLITTER_RESOURCES\r\n"
+    "#define _AFX_NO_OLE_RESOURCES\r\n"
+    "#define _AFX_NO_TRACKER_RESOURCES\r\n"
+    "#define _AFX_NO_PROPERTY_RESOURCES\r\n"
+    "\r\n"
+    "#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_JPN)\r\n"
+    "LANGUAGE 17, 1\r\n"
+    "#pragma code_page(932)\r\n"
+    "#include ""res\\ReadNsLog.rc2""  // non-Microsoft Visual C++ edited resources\r\n"
+    "#include ""afxres.rc""         // 標準コンポーネント\r\n"
+    "#endif\r\n"
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Icon
+//
+
+// Icon with lowest ID value placed first to ensure application icon
+// remains consistent on all systems.
+IDR_MAINFRAME           ICON                    "res\\ReadNsLog.ico"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_READNSLOG_DIALOG DIALOGEX 0, 0, 336, 277
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_VISIBLE | WS_CAPTION | 
+    WS_SYSMENU
+EXSTYLE WS_EX_APPWINDOW
+CAPTION "ReadNsLog v 1.1 - GNU GPL Free Software (C) INOUE Hirokazu"
+FONT 9, "MS UI Gothic", 0, 0, 0x1
+BEGIN
+    LTEXT           "Year",IDC_STATIC,12,24,16,8
+    EDITTEXT        IDC_EDIT_YEAR,36,18,30,18,ES_AUTOHSCROLL | ES_NUMBER | 
+                    NOT WS_BORDER,WS_EX_STATICEDGE
+    LTEXT           "Month",IDC_STATIC,72,24,21,8
+    EDITTEXT        IDC_EDIT_MONTH,102,18,36,18,ES_AUTOHSCROLL | ES_NUMBER | 
+                    NOT WS_BORDER,WS_EX_STATICEDGE
+    LTEXT           "Day",IDC_STATIC,144,24,13,8
+    EDITTEXT        IDC_EDIT_DAY,174,18,36,18,ES_AUTOHSCROLL | ES_NUMBER | 
+                    NOT WS_BORDER,WS_EX_STATICEDGE
+    LTEXT           "Last",IDC_STATIC,12,54,15,8
+    EDITTEXT        IDC_EDIT_SPAN,36,48,30,18,ES_AUTOHSCROLL | ES_NUMBER | 
+                    NOT WS_BORDER,WS_EX_STATICEDGE
+    LTEXT           "days",IDC_STATIC,72,54,15,8
+    CONTROL         "Use ""Last n Days""",IDC_RADIO_MODE_DAYS,"Button",
+                    BS_AUTORADIOBUTTON | WS_GROUP,12,78,198,12
+    CONTROL         "Use ""Year, Month"" (1 month report)",
+                    IDC_RADIO_MODE_MONTH,"Button",BS_AUTORADIOBUTTON,12,96,
+                    198,12
+    GROUPBOX        "Filter (OR Match)",IDC_STATIC,6,114,324,84
+    EDITTEXT        IDC_EDIT_MATCH1,24,126,114,18,ES_AUTOHSCROLL | NOT 
+                    WS_BORDER,WS_EX_STATICEDGE
+    LTEXT           "1",IDC_STATIC,12,132,8,8
+    EDITTEXT        IDC_EDIT_MATCH2,186,126,114,18,ES_AUTOHSCROLL | NOT 
+                    WS_BORDER,WS_EX_STATICEDGE
+    LTEXT           "2",IDC_STATIC,168,132,8,8
+    EDITTEXT        IDC_EDIT_MATCH3,24,150,114,18,ES_AUTOHSCROLL | NOT 
+                    WS_BORDER,WS_EX_STATICEDGE
+    LTEXT           "3",IDC_STATIC,12,156,8,8
+    EDITTEXT        IDC_EDIT_MATCH4,186,150,114,18,ES_AUTOHSCROLL | NOT 
+                    WS_BORDER,WS_EX_STATICEDGE
+    LTEXT           "4",IDC_STATIC,168,156,8,8
+    EDITTEXT        IDC_EDIT_MATCH5,24,174,114,18,ES_AUTOHSCROLL | NOT 
+                    WS_BORDER,WS_EX_STATICEDGE
+    LTEXT           "5",IDC_STATIC,12,180,8,8
+    EDITTEXT        IDC_EDIT_MATCH6,186,174,114,18,ES_AUTOHSCROLL | NOT 
+                    WS_BORDER,WS_EX_STATICEDGE
+    LTEXT           "6",IDC_STATIC,168,180,8,8
+    GROUPBOX        "Filter (OR Exclude)",IDC_STATIC,6,204,324,36
+    EDITTEXT        IDC_EDIT_EXCLUDE1,24,216,114,18,ES_AUTOHSCROLL | NOT 
+                    WS_BORDER,WS_EX_STATICEDGE
+    LTEXT           "1",IDC_STATIC,12,222,8,8
+    EDITTEXT        IDC_EDIT_EXCLUDE2,186,216,114,18,ES_AUTOHSCROLL | NOT 
+                    WS_BORDER,WS_EX_STATICEDGE
+    LTEXT           "2",IDC_STATIC,168,222,8,8
+    PUSHBUTTON      "Make Report",IDC_BTN_REPORT,228,18,102,18
+    PUSHBUTTON      "Close This Program",IDCANCEL,228,252,102,18
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Version
+//
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 1,1,0,1
+ PRODUCTVERSION 1,1,0,1
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x4L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "041103a4"
+        BEGIN
+            VALUE "FileDescription", "ReadNsLog"
+            VALUE "FileVersion", "1.1"
+            VALUE "InternalName", "ReadNsLog.exe"
+            VALUE "LegalCopyright", "GNU GPL Free Software (C) 2007 INOUE Hirokazu"
+            VALUE "OriginalFilename", "ReadNsLog.exe"
+            VALUE "ProductName", "ReadNsLog"
+            VALUE "ProductVersion", "1.1.0.1"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x411, 932
+    END
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO 
+BEGIN
+    IDD_READNSLOG_DIALOG, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 329
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 270
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+#endif    // 日本語 resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+#define _AFX_NO_SPLITTER_RESOURCES
+#define _AFX_NO_OLE_RESOURCES
+#define _AFX_NO_TRACKER_RESOURCES
+#define _AFX_NO_PROPERTY_RESOURCES
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_JPN)
+LANGUAGE 17, 1
+#pragma code_page(932)
+#include "res\ReadNsLog.rc2"  // non-Microsoft Visual C++ edited resources
+#include "afxres.rc"         // 標準コンポーネント
+#endif
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+
