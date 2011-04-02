@@ -10,6 +10,7 @@
 # client.cgi
 #
 # version 3.0, 2011/03/24  utf8化
+# version 3.1, 2011/04/02  設定ファイル include/setup.pl 追加
 #
 # GNU GPL Free Software
 #
@@ -45,6 +46,11 @@ use DBI qw(:sql_types);
 use Time::HiRes;	# ミリ秒単位で、処理時間を求める
 use Encode::Guess qw/euc-jp shiftjis iso-2022-jp/;	  # 必要ないエンコードは削除すること
 use FindBin qw/$Bin/;	# サーバ上でのフルパス名を得るため
+use File::Basename qw/dirname/;
+
+use lib ((getpwuid($<))[7]).'/local/cpan/lib/perl5';	# ユーザ環境にCPANライブラリを格納している場合
+use lib ((getpwuid($<))[7]).'/local/lib/perl5';		# ユーザ環境にCPANライブラリを格納している場合
+use Time::Out qw/timeout/;	# gethostbyaddr のタイムアウト処理に利用
 
 # 文字コード変換 共通サブルーチン用定義
 my $flag_os = 'linux';  # linux/windows
@@ -61,6 +67,14 @@ if($flag_charcode eq 'shiftjis'){
 	binmode(STDERR, "encoding(sjis)");
 }
 
+# サーバ環境に合わせた設定（グローバル変数に読み込む）
+require './include/setup.pl';
+our @arrHideReferer;		# ログに記録するときに、削除（置換）する文字列
+our $flag_ip_sameaddr_check;	# 同じアドレスからのアクセスをカウントしない
+our $flag_mode_param;		# プログラムに引数がなかった場合の標準動作モード
+our $sw_cnt_colmn;			# 'text'モードの時の、表示桁数
+
+
 # 正常時もエラーログを記録する
 my $flag_debugcsv_force_on = 0;
 
@@ -69,40 +83,21 @@ my $str_dsn_accesslog = 'DBI:SQLite:dbname='.$FindBin::Bin.'/data/accdb.sqlite';
 my $str_dsn_counter = 'DBI:SQLite:dbname='.$FindBin::Bin.'/data/counter.sqlite';
 
 # デバッグ用エラーログファイル
-my $str_filepath_debugcsv = $FindBin::Bin.'/debuglog.csv';
+my $str_filepath_debugcsv = $FindBin::Bin.'/data/debuglog.csv';
 
 # ダミーGIF画像ファイル
 my $str_filepath_dummygif = 'dummy_img.gif';
-
-# *************
-# 動作モードの設定
-
-# SSIのテキストモードで使用する場合は、$flag_mode_param = "text";
-my $flag_mode_param = "text";
-
-# 表示桁数 （0:不要なゼロをつけない）
-my $sw_cnt_colmn = 6;
 
 # ロックに使う作業用変数
 my $flag_is_locked = 0;			# ロックされている場合 =1
 my $tm_lock = 0;			# ロック時刻 （UNIX秒）
 my $tm_lock_timeout = 15;		# ロックのタイムアウト秒数
 
-# 同じアドレスからのアクセスをカウントしない (1:ON, 0:OFF)
-my $flag_ip_sameaddr_check = 1;
 # 作業用変数（同一アドレスからのアクセスの場合1になる）
 my $flag_is_ip_sameaddr = 0;
 
 # IPアドレスのホスト名への変換を行う (1:ON, 0:OFF)
 my $flag_ip_gethost = 1;
-
-# ログに記録するときに、削除（置換）する文字列
-# [0]要素に置換前、[1]要素に置換後の文字列を指定する。上から順に検索し、一致した時点で終了する
-my @arrHideReferer = (
-		['http://www.example.com/mw/index.php\?title=', 'mw:'],
-		['http://www.example.com', ''],
-		['http://example.com' => '']
-		);
 
 # 環境変数TZを日本時間に設定する
 $ENV{'TZ'} = "JST-9";
@@ -309,7 +304,17 @@ sub sub_make_accesslod_data
 	if ($flag_ip_gethost && (($hostname eq "") || ($hostname eq $ip))) {
 		if($ip eq '127.0.0.1' || $ip eq ''){ $hostname = 'localhost'; }
 		elsif($ip eq '0.0.0.0'){ $hostname = ''; }
-		else{ $hostname = gethostbyaddr(pack("C4", split(/\./, $ip)), 2); }
+		else{
+			# タイムアウト 1秒 として、IPアドレスをホスト名に変換する
+			timeout 1 => sub {
+				$hostname = gethostbyaddr(pack("C4", split(/\./, $ip)), 2);
+			};
+			if($@){
+				# タイムアウトした場合、ホスト名を空白に
+				$hostname = '';
+				sub_write_to_debug_log("===TIMEOUT gethostbyaddr (".$ip.")===");
+			}
+		}
 	}
 	
 	$hostname = sub_conv_to_safe_str($hostname, 255);
@@ -883,6 +888,5 @@ sub sub_get_encode_of_file{
 
 		return($enc);
 }
-
 
 # ************* (EOF)

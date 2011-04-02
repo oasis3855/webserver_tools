@@ -3,21 +3,16 @@
 <head>
 	<meta http-equiv="Content-Type" content="text/html; charset=shift_jis" />
 	<meta http-equiv="Content-Language" content="ja" />
-	<title> </title>
-
-	<script type="text/javascript" src="../utf.js"></script>
-	<script type="text/javascript" src="../md5.js"></script>
-	<script type="text/javascript" src="../authpage_form_md5.js"></script>
-	
+	<title>web-counter debug log (data/debuglog.csv)</title>
 </head>
 <body>
 
 <?php
 
-print("<p>デバッグログ（tail ../debuglog.csv コマンド）</p>\n");
+print("<p>デバッグログ（tail ../data/debuglog.csv コマンド）</p>\n");
 print("<pre>\n");
 
-$strResult = system('tail -n 40 ../debuglog.csv');
+$strResult = system('tail -n 40 ../data/debuglog.csv');
 print($strResult);
 print("</pre>\n");
 
