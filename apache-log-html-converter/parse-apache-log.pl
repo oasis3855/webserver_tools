@@ -32,13 +32,15 @@
 use strict;
 use warnings;
 use utf8;
+use File::Basename;
 
 my $flag_os = 'linux';	# linux/windows
 my $flag_charcode = 'utf8';		# utf8/shiftjis
 
 
 # ユーザの環境に合わせた設定ファイルを読み込む
-require 'parse-apache-log.config.pl';
+my $config_filename = dirname($0).'/parse-apache-log.config.pl';
+require $config_filename;
 ##### GLOBAL CONFIG VALUE #####
 our $log_directory;
 our $log_filename_template;
@@ -97,17 +99,18 @@ sub sub_main {
     
     # ログファイルの存在を確認（圧縮されている場合は、解凍）
     my $flag_log_unzip = 0;
-    if(-f $log_filename) {
-        # ログファイルが存在する場合：OK
+    if(-f $log_filename && -r $log_filename) {
+        # ログファイルが存在し、読み込み可能な場合：OK
         if($#ARGV != 0) { print("logfile is found.\n"); }
-    } elsif(-f $log_filename.'.gz') {
+    } elsif(-f $log_filename.'.gz' && !(-f $log_filename)) {
         # ログファイルが存在しないが、圧縮ファイルが存在する場合：解凍する
         sub_extract_gzlog($log_filename);
         $flag_log_unzip = 1;
         if($#ARGV != 0) { print("logfile is extracted from .gz archive.\n"); }
     } else {
         # ログファイルも、圧縮ファイルも見つからない場合：エラーログに出力
-        sub_write_errorlog('logfile not found.');
+        if(-f $log_filename){ sub_write_errorlog('logfile not readable.'); }
+        else{ sub_write_errorlog('logfile not found.'); }        
         return;
     }
 
