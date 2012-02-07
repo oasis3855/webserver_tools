@@ -3,6 +3,8 @@
 our $log_directory = './var/log/';
 # LOG file pattern ( string for sprintf('name%d%d%d', $y, $m, $d) )
 our $log_filename_template = 'access_log_%04d%02d%02d';
+# ERROR_LOG file pattern ( string for sprintf('name%d%d%d', $y, $m, $d) )
+our $errorlog_filename_template = 'error_log_%04d%02d%02d';
 # Output directory
 our $output_directory = './var/www/';
 # Output file pattern ( string for sprintf('name%d%d%d', $y, $m, $d) )
