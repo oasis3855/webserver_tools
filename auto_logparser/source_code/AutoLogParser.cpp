@@ -105,7 +105,7 @@ BOOL CAutoLogParserApp::InitInstance()
 // ***********************
 // 自動実行を行う （タイマーなどで定期的にバックグラウンドで実行することを想定）
 // ***********************
-void CAutoLogParserApp::RunAutomatick(void)
+bool CAutoLogParserApp::RunAutomatick(void)
 {
 	time_t tmNowSec;
 	struct tm *tmNow;
@@ -114,8 +114,16 @@ void CAutoLogParserApp::RunAutomatick(void)
 	tmNow = ::localtime(&tmNowSec);
 
 	// バッチファイル、SQL命令ファイルを作成
-	::MakeConfigFile(tmNow->tm_year+1900, tmNow->tm_mon+1, tmNow->tm_mday, 7, &srInit);
+	if(!::MakeConfigFile(tmNow->tm_year+1900, tmNow->tm_mon+1, tmNow->tm_mday, 7, &srInit))
+	{
+		return false;	// ファイル作成失敗
+	}
 
 	// LogParserを実行
-	::RunLogParser(&srInit);
+	if(!::RunLogParser(&srInit))
+	{
+		return false;	// 実行失敗
+	}
+
+	return true;
 }

@@ -29,6 +29,7 @@
 #include "AutoLogParserDlg.h"
 #include ".\autologparserdlg.h"
 #include "GlobalFunc.h"
+#include <io.h>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -136,7 +137,11 @@ void CAutoLogParserDlg::OnBnClickedBtnMakecfg()
 	// TODO : ここにコントロール通知ハンドラ コードを追加します。
 
 	// バッチファイル、SQL命令ファイルを作成
-	::MakeConfigFile(GetDlgItemInt(IDC_EDIT_YEAR), GetDlgItemInt(IDC_EDIT_MONTH), GetDlgItemInt(IDC_EDIT_DAY), GetDlgItemInt(IDC_EDIT_SPAN), srInit);
+	if(!::MakeConfigFile(GetDlgItemInt(IDC_EDIT_YEAR), GetDlgItemInt(IDC_EDIT_MONTH), GetDlgItemInt(IDC_EDIT_DAY), GetDlgItemInt(IDC_EDIT_SPAN), srInit))
+	{
+		this->MessageBox("自動実行用バッチファイル、SQLファイルの作成に失敗しました");
+		return;
+	}
 }
 
 // ***********************
@@ -148,10 +153,27 @@ void CAutoLogParserDlg::OnBnClickedBtnMakecfgAndRun()
 {
 	// TODO : ここにコントロール通知ハンドラ コードを追加します。
 
+	// Log Parser 実行ファイルが存在するか確認する
+	CString sTemp;
+	sTemp.Format("%s%s", srInit->sLogParserDir, srInit->sLogParserProgName);
+	if(::_access(sTemp, 0) != 0)
+	{
+		this->MessageBox("Microsoft Log Parser実行ファイルが見つかりません");
+		return;
+	}
+
 	// バッチファイル、SQL命令ファイルを作成
-	::MakeConfigFile(GetDlgItemInt(IDC_EDIT_YEAR), GetDlgItemInt(IDC_EDIT_MONTH), GetDlgItemInt(IDC_EDIT_DAY), GetDlgItemInt(IDC_EDIT_SPAN), srInit);
+	if(!::MakeConfigFile(GetDlgItemInt(IDC_EDIT_YEAR), GetDlgItemInt(IDC_EDIT_MONTH), GetDlgItemInt(IDC_EDIT_DAY), GetDlgItemInt(IDC_EDIT_SPAN), srInit))
+	{
+		this->MessageBox("自動実行用バッチファイル、SQLファイルの作成に失敗しました");
+		return;
+	}
 
 	// LogParserを実行
-	::RunLogParser(srInit);
+	if(!::RunLogParser(srInit))
+	{
+		this->MessageBox("自動実行用バッチファイルが実行できませんでした");
+		return;
+	}
 }
 

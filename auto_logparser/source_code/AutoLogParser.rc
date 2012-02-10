@@ -75,7 +75,7 @@ IDD_AUTOLOGPARSER_DIALOG DIALOGEX 0, 0, 348, 85
 STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_VISIBLE | WS_CAPTION | 
     WS_SYSMENU
 EXSTYLE WS_EX_APPWINDOW
-CAPTION "AutoLogParser v1.1 - GNU GPL Free Software (C) INOUE Hirokazu"
+CAPTION "AutoLogParser v1.2 - GNU GPL Free Software (C) INOUE Hirokazu"
 FONT 9, "MS UI Gothic", 0, 0, 0x1
 BEGIN
     LTEXT           "Year",IDC_STATIC,12,18,16,8
@@ -99,8 +99,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,1,0,1
- PRODUCTVERSION 1,1,0,1
+ FILEVERSION 1,2,0,1
+ PRODUCTVERSION 1,2,0,1
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -116,12 +116,12 @@ BEGIN
         BLOCK "041103a4"
         BEGIN
             VALUE "FileDescription", "AutoLogParser"
-            VALUE "FileVersion", "1.1"
+            VALUE "FileVersion", "1.2"
             VALUE "InternalName", "AutoLogParser.exe"
-            VALUE "LegalCopyright", "GNU GPL Free Software (C) 2007 INOUE Hirokazu"
+            VALUE "LegalCopyright", "GNU GPL Free Software (C) 2012 INOUE Hirokazu"
             VALUE "OriginalFilename", "AutoLogParser.exe"
             VALUE "ProductName", "AutoLogParser"
-            VALUE "ProductVersion", "1.1.0.1"
+            VALUE "ProductVersion", "1.2.0.1"
         END
     END
     BLOCK "VarFileInfo"

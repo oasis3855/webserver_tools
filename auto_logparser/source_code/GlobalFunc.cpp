@@ -26,6 +26,7 @@
 #include "stdafx.h"
 #include "AutoLogParser.h"
 #include "GlobalFunc.h"
+#include <string.h>
 #include <process.h>
 #include <stdlib.h>
 #include <io.h>
@@ -56,7 +57,7 @@ bool MakeConfigFile(int nYear, int nMonth, int nDay, int nSpan, struct __sr_init
 
 	/******** バッチファイル（logauto.cmd）の作成 ********/
 
-	sTemp.Format("%slogauto.cmd", srInit->sIISLogDir);
+	sTemp.Format("%slogauto.cmd", srInit->sLogDir);
 
 	fo = ::fopen(sTemp, "wt");
 	if(fo == NULL)
@@ -64,66 +65,139 @@ bool MakeConfigFile(int nYear, int nMonth, int nDay, int nSpan, struct __sr_init
 		return false;
 	}
 
-	fprintf(fo, "set path=%%path%%;%s\n", srInit->sLogParserDir);
-	fprintf(fo, "%c:\ncd %s\n", srInit->sIISLogDir[0], srInit->sIISLogDir);
-	fprintf(fo, "%s file:sql_err.sql -iw:on -o:NAT\n", srInit->sLogParserProgName);
-	fprintf(fo, "%s file:sql_method.sql -iw:on -o:NAT\n", srInit->sLogParserProgName);
-	fprintf(fo, "%s file:sql_status.sql -iw:on -o:NAT\n", srInit->sLogParserProgName);
-	fprintf(fo, "%s file:sql_method2.sql -iw:on -o:NAT\n", srInit->sLogParserProgName);
+	fprintf(fo, "set path=%%path%%;%s\n"
+				"%c:\n"
+				"cd %s\n", srInit->sLogParserDir,
+				srInit->sLogDir[0], srInit->sLogDir);
+
+	fprintf(fo, "%s file:sql_err.sql -iw:on -i:%s -o:%s\n", srInit->sLogParserProgName, srInit->sLogType, srInit->sOutputType);
+	fprintf(fo, "%s file:sql_method.sql -iw:on -i:%s -o:%s\n", srInit->sLogParserProgName, srInit->sLogType, srInit->sOutputType);
+	fprintf(fo, "%s file:sql_status.sql -iw:on -i:%s -o:%s\n", srInit->sLogParserProgName, srInit->sLogType, srInit->sOutputType);
+	if(stricmp(srInit->sLogType, "NCSA"))
+	{	// NCSA(Apache)ではこの集計未対応
+		fprintf(fo, "%s file:sql_method2.sql -iw:on -i:%s -o:%s\n", srInit->sLogParserProgName, srInit->sLogType, srInit->sOutputType);
+	}
 
 
-	fprintf(fo, "%c:\ncd %s\n", srInit->sOutputDir[0], srInit->sOutputDir);
-	fprintf(fo, "echo IIS Log summary on %4d/%02d/%02d %02d:%02d > iislog.txt\n",
-		tmStart.tm_year+1900, tmStart.tm_mon+1, tmStart.tm_mday, tmStart.tm_hour, tmStart.tm_min);
-	fputs("echo ... >> iislog.txt\n", fo);
-	fputs("type iislog_status.txt >> iislog.txt\n", fo);
-	fputs("type iislog_method2.txt >> iislog.txt\n", fo);
-	fputs("echo ... >> iislog.txt\n", fo);
-	fputs("echo ... >> iislog.txt\n", fo);
-	fputs("echo Error Lines ... >> iislog.txt\n", fo);
-	fputs("echo ... >> iislog.txt\n", fo);
-	fputs("type iislog_err.txt >> iislog.txt\n", fo);
-	fputs("echo ... >> iislog.txt\n", fo);
-	fputs("echo ... >> iislog.txt\n", fo);
-	fputs("echo Method (not GET, not POST) Lines ... >> iislog.txt\n", fo);
-	fputs("echo ... >> iislog.txt\n", fo);
-	fputs("type iislog_method.txt >> iislog.txt\n", fo);
-	fputs("echo ... >> iislog.txt\n", fo);
-	fputs("echo ... >> iislog.txt\n", fo);
-	fputs("echo EOF >> iislog.txt\n", fo);
+	fprintf(fo, "%c:\ncd %s\n"
+				"echo Web Server Log summary on %4d/%02d/%02d %02d:%02d > %s\n",
+				srInit->sOutputDir[0], srInit->sOutputDir,
+				tmStart.tm_year+1900, tmStart.tm_mon+1, tmStart.tm_mday, tmStart.tm_hour, tmStart.tm_min, srInit->sOutputFilename);
+	fprintf(fo, "echo ... >> %s\n"
+				"type iislog_status.txt >> %s\n", srInit->sOutputFilename, srInit->sOutputFilename);
+	if(stricmp(srInit->sLogType, "NCSA"))
+	{	// NCSA(Apache)ではこの集計未対応
+		fprintf(fo, "type iislog_method2.txt >> %s\n", srInit->sOutputFilename);
+	}
+	fprintf(fo, "echo ... >> %s\n"
+				"echo ... >> %s\n"
+				"echo Error Lines ... >> %s\n"
+				"echo ... >> %s\n"
+				"type iislog_err.txt >> %s\n"
+				"echo ... >> %s\n"
+				"echo ... >> %s\n"
+				"echo Method (not GET, not POST) Lines ... >> %s\n"
+				"echo ... >> %s\n"
+				"type iislog_method.txt >> %s\n"
+				"echo ... >> %s\n"
+				"echo ... >> %s\n"
+				"echo EOF >> %s\n",
+				srInit->sOutputFilename, srInit->sOutputFilename, srInit->sOutputFilename, srInit->sOutputFilename, srInit->sOutputFilename,
+				srInit->sOutputFilename, srInit->sOutputFilename, srInit->sOutputFilename, srInit->sOutputFilename, srInit->sOutputFilename,
+				srInit->sOutputFilename, srInit->sOutputFilename, srInit->sOutputFilename);
 
-	fputs("del iislog_status.txt\n", fo);
-	fputs("del iislog_method2.txt\n", fo);
-	fputs("del iislog_err.txt\n", fo);
-	fputs("del iislog_method.txt\n", fo);
+
+	fputs("del iislog_status.txt\n"
+		"del iislog_method2.txt\n"
+		"del iislog_err.txt\n"
+		"del iislog_method.txt\n", fo);
 
 	fclose(fo);
 
 
-	/******** SQL命令ファイルの作成 : error log ********/
+	if(!stricmp(srInit->sLogType, "IIS"))
+	{
+		/******** SQL命令ファイルの作成 : error log ********/
 
-	MakeConfigFile_MakeSQL("sql_err.sql", "iislog_err.txt", "select\n\t*\n\n", 
-		"\nwhere\n\tsc-status=500 or\n\tsc-status=501 or\n\tsc-status=502 or\n\tsc-status=403 or\n\tsc-status=404\n\n",
-		nSpan, tmStartSec, srInit);
-
-
-	/******** SQL命令ファイルの作成 : method log ********/
-
-	MakeConfigFile_MakeSQL("sql_method.sql", "iislog_method.txt", "select\n\t*\n\n", 
-		"\nwhere\n\tcs-method<>'GET' and\n\tcs-method<>'POST'\n\n",
-		nSpan, tmStartSec, srInit);
+		MakeConfigFile_MakeSQL("sql_err.sql", "iislog_err.txt", "select\n\t*\n\n", 
+			"\nwhere\n\tStatusCode>400\n\n",
+			nSpan, tmStartSec, srInit);
 
 
-	/******** SQL命令ファイルの作成 : status count up ********/
+		/******** SQL命令ファイルの作成 : method log ********/
 
-	MakeConfigFile_MakeSQL("sql_status.sql", "iislog_status.txt", "select\n\tsc-status, count (*)\n\n", 
-		"\ngroup by sc-status\n\n", nSpan, tmStartSec, srInit);
+		MakeConfigFile_MakeSQL("sql_method.sql", "iislog_method.txt", "select\n\t*\n\n", 
+			"\nwhere\n\tRequestType<>'GET' and\n\tRequestType<>'POST'\n\n",
+			nSpan, tmStartSec, srInit);
 
 
-	/******** SQL命令ファイルの作成 : method count up ********/
+		/******** SQL命令ファイルの作成 : status count up ********/
 
-	MakeConfigFile_MakeSQL("sql_method2.sql", "iislog_method2.txt", "select\n\tcs-method, count (*)\n\n", 
-		"\ngroup by cs-method\n\n", nSpan, tmStartSec, srInit);
+		MakeConfigFile_MakeSQL("sql_status.sql", "iislog_status.txt", "select\n\tStatusCode, count (*)\n\n", 
+			"\ngroup by StatusCode\n\n", nSpan, tmStartSec, srInit);
+
+
+		/******** SQL命令ファイルの作成 : method count up ********/
+
+		MakeConfigFile_MakeSQL("sql_method2.sql", "iislog_method2.txt", "select\n\tRequestType, count (*)\n\n", 
+			"\ngroup by RequestType\n\n", nSpan, tmStartSec, srInit);
+
+	}
+	else if(!stricmp(srInit->sLogType, "IISW3C"))
+	{
+		/******** SQL命令ファイルの作成 : error log ********/
+
+		MakeConfigFile_MakeSQL("sql_err.sql", "iislog_err.txt", "select\n\t*\n\n", 
+			"\nwhere\n\tsc-status>400\n\n",
+			nSpan, tmStartSec, srInit);
+
+
+		/******** SQL命令ファイルの作成 : method log ********/
+
+		MakeConfigFile_MakeSQL("sql_method.sql", "iislog_method.txt", "select\n\t*\n\n", 
+			"\nwhere\n\tcs-method<>'GET' and\n\tcs-method<>'POST'\n\n",
+			nSpan, tmStartSec, srInit);
+
+
+		/******** SQL命令ファイルの作成 : status count up ********/
+
+		MakeConfigFile_MakeSQL("sql_status.sql", "iislog_status.txt", "select\n\tsc-status, count (*)\n\n", 
+			"\ngroup by sc-status\n\n", nSpan, tmStartSec, srInit);
+
+
+		/******** SQL命令ファイルの作成 : method count up ********/
+
+		MakeConfigFile_MakeSQL("sql_method2.sql", "iislog_method2.txt", "select\n\tcs-method, count (*)\n\n", 
+			"\ngroup by cs-method\n\n", nSpan, tmStartSec, srInit);
+
+	}
+	else if(!stricmp(srInit->sLogType, "NCSA"))
+	{
+		/******** SQL命令ファイルの作成 : error log ********/
+
+		MakeConfigFile_MakeSQL("sql_err.sql", "iislog_err.txt", "select\n\t*\n\n", 
+			"\nwhere\n\tStatusCode>400\n\n",
+			nSpan, tmStartSec, srInit);
+
+
+		/******** SQL命令ファイルの作成 : method log ********/
+
+		MakeConfigFile_MakeSQL("sql_method.sql", "iislog_method.txt", "select\n\t*\n\n", 
+			"\nwhere\n\tRequest not like 'GET %' and\n\tRequest not like 'POST %'\n\n",
+			nSpan, tmStartSec, srInit);
+
+
+		/******** SQL命令ファイルの作成 : status count up ********/
+
+		MakeConfigFile_MakeSQL("sql_status.sql", "iislog_status.txt", "select\n\tStatusCode, count (*)\n\n", 
+			"\ngroup by StatusCode\n\n", nSpan, tmStartSec, srInit);
+
+
+		/******** SQL命令ファイルの作成 : method count up ********/
+
+		// NCSA形式では、この集計は不可能
+
+	}
 
 	return true;
 }
@@ -138,11 +212,19 @@ bool MakeConfigFile_MakeSQL(char *sOutputSqlName, char *sIntoName, char *sSelect
 	time_t tmProcSec;
 	struct tm tmStart;
 	int i;
+	BOOL bYear4Digit;
 	char sLogFname[256];
 	char sTempFname[1024+256];
 
+	// ログファイルの年が4桁か、2桁かを判定 ( log%04d%02d%02d または log%02d%02d%02d の違いを検出）
+	sTemp = srInit->sLogName;
+	i=0;
+	if(sTemp[0] != '%'){ sTemp.Tokenize("%d", i); }		// 文字列先頭が %dで始まらない場合、切り出し1個目は読み飛ばす
+	if(atoi(sTemp.Tokenize("%d",i)) >= 3){ bYear4Digit = true; }	// %とdで囲まれた部分を読み出し桁数を判定する
+	else{ bYear4Digit = false; }
+
 	// SQL命令ファイルを開く
-	sprintf(sTempFname, "%s%s", srInit->sIISLogDir, sOutputSqlName);
+	sprintf(sTempFname, "%s%s", srInit->sLogDir, sOutputSqlName);
 
 	fo = ::fopen(sTempFname, "wt");
 	if(fo == NULL)
@@ -162,9 +244,9 @@ bool MakeConfigFile_MakeSQL(char *sOutputSqlName, char *sIntoName, char *sSelect
 	{
 		tmProcSec = tmStartSec - i * 24 * 60 * 60;
 		tmStart = *::localtime(&tmProcSec);
-		sprintf(sLogFname, srInit->sIISLogName, tmStart.tm_year+1900-2000, tmStart.tm_mon+1, tmStart.tm_mday);
-		sprintf(sTempFname, "%s%s", srInit->sIISLogDir, sLogFname);
-		if(::_access(sTempFname, 0) == -1) continue;	// ログファイルが存在しない場合はスキップ
+		sprintf(sLogFname, srInit->sLogName, (bYear4Digit ? tmStart.tm_year+1900 : tmStart.tm_year+1900-2000), tmStart.tm_mon+1, tmStart.tm_mday);
+		sprintf(sTempFname, "%s%s", srInit->sLogDir, sLogFname);
+		if(::_access(sTempFname, 0) != 0) continue;	// ログファイルが存在しない場合はスキップ
 		fprintf(fo, "\n\t%s,", sLogFname);
 	}
 	fseek(fo, -1, SEEK_CUR);	// 最後のファイル名の後ろのコンマを取る
@@ -181,14 +263,20 @@ bool MakeConfigFile_MakeSQL(char *sOutputSqlName, char *sIntoName, char *sSelect
 // ***********************
 // LoParser実行＆出力ファイルコピー用バッチファイルの実行
 // ***********************
-void RunLogParser(struct __sr_init_data *srInit)
+bool RunLogParser(struct __sr_init_data *srInit)
 {
 	CString sTemp;
 
-	sTemp.Format("%slogauto.cmd", srInit->sIISLogDir);
+	sTemp.Format("%s%s", srInit->sLogParserDir, srInit->sLogParserProgName);
+	if(::_access(sTemp, 0) != 0) return false;	// LogParserプログラムが存在しない
 
-	::_spawnl(_P_WAIT, (LPCSTR)sTemp, (LPCSTR)sTemp, NULL);
+	sTemp.Format("%slogauto.cmd", srInit->sLogDir);
 
+	if(::_spawnl(_P_WAIT, (LPCSTR)sTemp, (LPCSTR)sTemp, NULL) != 0)
+	{
+		return false;
+	}
+	return true;
 }
 
 // ***********************
@@ -234,17 +322,29 @@ int GetInitData(__sr_init_data *srInit)
 	GetPrivateProfileString("AutoLogParser", "OutputDir", "err", srInit->sOutputDir, 1023, sModulePath);
 	if(!strcmp(srInit->sOutputDir, "err")) return 1;		// 設定値読み込み不能
 
+	GetPrivateProfileString("AutoLogParser", "OutputFilename", "err", srInit->sOutputFilename, 254, sModulePath);
+	if(!strcmp(srInit->sOutputFilename, "err")) return 1;		// 設定値読み込み不能
+
+	GetPrivateProfileString("AutoLogParser", "OutputType", "err", srInit->sOutputType, 31, sModulePath);
+	if(!strcmp(srInit->sOutputType, "err")) return 1;		// 設定値読み込み不能
+
 	GetPrivateProfileString("AutoLogParser", "LogParserDir", "err", srInit->sLogParserDir, 1023, sModulePath);
 	if(!strcmp(srInit->sLogParserDir, "err")) return 1;		// 設定値読み込み不能
 
 	GetPrivateProfileString("AutoLogParser", "LogParserProgName", "err", srInit->sLogParserProgName, 254, sModulePath);
 	if(!strcmp(srInit->sLogParserProgName, "err")) return 1;	// 設定値読み込み不能
 
-	GetPrivateProfileString("AutoLogParser", "IISLogDir", "err", srInit->sIISLogDir, 1023, sModulePath);
-	if(!strcmp(srInit->sIISLogDir, "err")) return 1;		// 設定値読み込み不能
+	GetPrivateProfileString("AutoLogParser", "LogDir", "err", srInit->sLogDir, 1023, sModulePath);
+	if(!strcmp(srInit->sLogDir, "err")) return 1;		// 設定値読み込み不能
 
-	GetPrivateProfileString("AutoLogParser", "IISLogName", "err", srInit->sIISLogName, 254, sModulePath);
-	if(!strcmp(srInit->sIISLogName, "err")) return 1;		// 設定値読み込み不能
+	GetPrivateProfileString("AutoLogParser", "LogNameTemplate", "err", srInit->sLogName, 254, sModulePath);
+	if(!strcmp(srInit->sLogName, "err")) return 1;		// 設定値読み込み不能
+
+	GetPrivateProfileString("AutoLogParser", "LogType", "err", srInit->sLogType, 31, sModulePath);
+	if(!strcmp(srInit->sLogType, "err")) return 1;		// 設定値読み込み不能
+
+	// ログ形式 Apache を NCSA に読み替え
+	if(!stricmp(srInit->sLogType, "Apache")){ strcpy(srInit->sLogType, "NCSA"); }
 
 	return 0;
 }
@@ -283,15 +383,26 @@ void WriteInitIniFile(void)
 
 	if(!WritePrivateProfileString("AutoLogParser", "install", "installed (do not delete this line)", sModulePath))
 		return ;
-	if(!WritePrivateProfileString("AutoLogParser", "OutputDir", "d:\\Inetpub\\wwwroot\\", sModulePath))
+	if(!WritePrivateProfileString("AutoLogParser", "OutputDir", "c:\\Inetpub\\wwwroot\\", sModulePath))
+		return ;
+	if(!WritePrivateProfileString("AutoLogParser", "OutputFilename", "report.txt", sModulePath))
+		return ;
+	if(!WritePrivateProfileString("AutoLogParser", "OutputType", "NAT", sModulePath))
 		return ;
 	if(!WritePrivateProfileString("AutoLogParser", "LogParserDir", "c:\\Program Files\\Log Parser 2.2\\", sModulePath))
 		return ;
 	if(!WritePrivateProfileString("AutoLogParser", "LogParserProgName", "logparser.exe", sModulePath))
 		return ;
-	if(!WritePrivateProfileString("AutoLogParser", "IISLogDir", "d:\\Inetpub\\Log\\", sModulePath))
+	if(!WritePrivateProfileString("AutoLogParser", "LogDir", "c:\\WINDOWS\\System32\\LogFiles\\W3SVC1\\", sModulePath))
 		return ;
-	if(!WritePrivateProfileString("AutoLogParser", "IISLogName", "ex%02d%02d%02d.log", sModulePath))
+	if(!WritePrivateProfileString("AutoLogParser", "LogNameTemplate", "ex%02d%02d%02d.log", sModulePath))
+		return ;
+	if(!WritePrivateProfileString("AutoLogParser", "LogType", "IISW3C", sModulePath))
+		return ;
+
+	if(!WritePrivateProfileString("Readme", ";OutputType selection", "NAT/CSV", sModulePath))
+		return ;
+	if(!WritePrivateProfileString("Readme", ";LogType selection", "IIS/IISW3C/NCSA (Apache=NCSA)", sModulePath))
 		return ;
 
 

@@ -27,7 +27,7 @@ public:
 // ŽÀ‘•
 
 	DECLARE_MESSAGE_MAP()
-	void RunAutomatick(void);
+	bool RunAutomatick(void);
 	struct __sr_init_data srInit;
 };
 
