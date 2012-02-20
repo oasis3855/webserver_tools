@@ -10,6 +10,7 @@
 # parse-apache-log.pl
 # version 0.1 (2012/Feb/04)
 # version 0.2 (2012/Feb/07)
+# Version 0.3 (2012/Feb/20)
 #
 # GNU GPL Free Software
 #
@@ -52,6 +53,11 @@ our $output_index_filename;
 our $error_message_filename;
 our $flag_use_zlib;
 ##### GLOBAL CONFIG VALUE #####
+##### STAT HASH #####
+our %stat_ext;
+our %stat_statuscode;
+##### STAT HASH #####
+
 
 # ユーザディレクトリ下のCPANモジュールを読み込む
 use lib ((getpwuid($<))[7]).'/local/cpan/lib/perl5';    # ユーザ環境にCPANライブラリを格納している場合
@@ -67,6 +73,8 @@ use HTML::Entities;
 if($flag_use_zlib == 1) {
     use Compress::Zlib;
 }
+use DBI qw(:sql_types);
+use FindBin qw/$Bin/;	# サーバ上でのフルパス名を得るため
 
 sub_main();
 exit;
@@ -74,6 +82,8 @@ exit;
 sub sub_main {
     # 解析対象年月日
     my $tm = time();    # デフォルト値は現在日時
+    my %stat = ();          # 統計データ格納ハッシュ
+    sub_stat_log('', 0, 'hash_init');
 
     # プログラム引数をチェック、解析対象年月日を決定する
     if($#ARGV == 0) {
@@ -101,7 +111,7 @@ sub sub_main {
             $log_filename, $errorlog_filename, $output_filename);
     }
     
-    # ログファイルの存在を確認（圧縮されている場合は、解凍）
+    ##### ログファイルの存在を確認（圧縮されている場合は、解凍）
     my $flag_log_unzip = 0;
     if(-f $log_filename && -r $log_filename) {
         # ログファイルが存在し、読み込み可能な場合：OK
@@ -118,7 +128,7 @@ sub sub_main {
         return;
     }
     
-    # エラーログファイルの存在を確認（圧縮されている場合は、解凍）
+    ##### エラーログファイルの存在を確認（圧縮されている場合は、解凍）
     my $flag_errorlog_unzip = 0;
     if(-f $errorlog_filename && -r $errorlog_filename) {
         # ログファイルが存在し、読み込み可能な場合：OK
@@ -135,6 +145,7 @@ sub sub_main {
         # エラーログは存在しなくても、実行を継続する        
     }
 
+    ##### ログファイルを読み込んでレポート出力する
     eval {
         # 出力用, レポートファイルを開く
         open(FH_OUT, '>'.$output_filename) or die("Output File open error");
@@ -152,30 +163,31 @@ sub sub_main {
             sub_read_errorlogfile($errorlog_filename, *FH_OUT);
             if($#ARGV != 0) { print("error report done.\n"); }
         }
-
         # HTML構文を閉じて、ファイルを閉じる
         print(FH_OUT "</body>\n</html>\n") or die;
         close(FH_OUT) or die;
-    } or do {
+    };
+    if($@) {
         # エラー発生時に、このプログラムのエラーログに出力
         sub_write_errorlog($@);
         exit;
-    };
-
-
-    # ログファイルがgz圧縮されていた場合、解凍したファイルを削除する
+    }
+    ##### ログファイルがgz圧縮されていた場合、解凍したファイルを削除する
     if($flag_log_unzip == 1){
         unlink($log_filename);
         if($#ARGV != 0) { print("uncompressed logfile clean.\n"); }
     }
-    # エラーログファイルがgz圧縮されていた場合、解凍したファイルを削除する
+    ##### エラーログファイルがgz圧縮されていた場合、解凍したファイルを削除する
     if($flag_errorlog_unzip == 1){
         unlink($errorlog_filename);
         if($#ARGV != 0) { print("uncompressed error logfile clean.\n"); }
     }
     
+    # 統計データをDBに書きこむ
+    sub_stat_writeto_db($tm);
+    
     # レポートディレクトリの全てのHTMLファイルのリストを作成する（目次HTMLページ）
-    sub_make_logfile_index($output_directory, $output_directory.$output_index_filename);
+    sub_make_logfile_index($output_directory, $output_directory.$output_index_filename, $tm);
     if($#ARGV != 0) { print("report index done.\n"); }
 
     return;
@@ -214,20 +226,17 @@ sub sub_user_input {
 sub sub_read_logfile {
     my $log_filename = shift;       # 引数：ログファイルのファイル名（フルパス）
     local (*FH_OUT) = shift;        # 引数：ファイルハンドル
-    my %stat = ();          # 統計データ格納ハッシュ
-    sub_stat_log(\%stat, '', 0, 'hash_init');
     my $str_curline = '';   # エラー出力用に現在行を保存
 
     eval {
-        # HTMLファイルのテーブルヘッダ開始部分をファイル出力
-        sub_output_html_header(*FH_OUT, 'table_access');
-
         # CSVファイル形式を、バイナリ対応（日本語対応）、区切り文字はスペースとする
         my $csv = Text::CSV_XS->new({binary=>1, 'sep_char'=>' ', 'escape_char'=>'\\'});
 
-        # 入力用, Apacheログファイルを開く
+        ##### ログファイルを1行ずつ読み込んで順次処理（TABLE形式で出力）
+        # Apacheログファイルを開く
         open(FH_LOG, '<'.$log_filename) or die("Log File open error");
-        # ログファイルを1行ずつ読み込んで順次処理
+        # HTMLファイルのテーブルヘッダ開始部分をファイル出力
+        sub_output_html_header(*FH_OUT, 'table_access');
         while(<FH_LOG>){
             chomp;
             $str_curline = $_;
@@ -248,7 +257,7 @@ sub sub_read_logfile {
             # HTTPリクエスト文字列をURLデコードし、UTF8に変換
             my $str_httpcmd = HTML::Entities::encode_entities(sub_conv_to_flagged_utf8(URI::Escape::uri_unescape($arr[5])));
             # 統計
-            sub_stat_log(\%stat, $str_httpcmd, int($arr[6]), 'stat');
+            sub_stat_log($str_httpcmd, int($arr[6]), 'stat');
             # HTTPリザルトコード 300以上（WARNING以上）をレポート対象とする
             if(int($arr[6])<300){ next; }
             if(int($arr[6])==304){ next; }  # 304:リダイレクトはレポート対象外
@@ -263,74 +272,87 @@ sub sub_read_logfile {
         }
         print(FH_OUT "</table>\n") or die;
         close(FH_LOG) or die;
-        # 統計を出力
-        print(FH_OUT "<p>拡張子別統計：html=".$stat{'.html'}.", php=".$stat{'.php'}.", cgi=".$stat{'.cgi'}.
-            ", jpg=".$stat{'.jpg'}.", png=".$stat{'.png'}.", gif=".$stat{'.gif'}.", pdf=".$stat{'.pdf'}.
-            ", lzh=".$stat{'.lzh'}.", zip=".$stat{'.zip'}.", other=".$stat{'.other'}."</p>\n");
-        print(FH_OUT "<p>結果コード別統計：200-299=".$stat{'2xx'}.", 300-399=".$stat{'3xx'}.", 400-499=".$stat{'4xx'}.
-            ", 500-599=".$stat{'5xx'}."</p>\n");
-        print(FH_OUT "<p>ログ全行数：".$stat{'all'}."</p>\n");
-    } or do {
-        # エラー発生時に、このプログラムのエラーログに出力
-        sub_write_errorlog($@);
-        exit;
+        ##### ログファイルを1行ずつ読み込んで順次処理（TABLE形式で出力）
+
+
+        ##### 統計を出力
+        # ステータスコードの統計結果一覧を表示する
+        print(FH_OUT "<p>HTTPステータスコード別統計</p>\n<table>\n<tr>\n");
+        for my $key (sort keys %stat_statuscode){
+            printf(FH_OUT "<td>%s</td>", $stat_statuscode{$key}{'disp'});
+        }
+        print(FH_OUT "</tr>\n<tr>\n");
+        for my $key (sort keys %stat_statuscode){
+            printf(FH_OUT "<td>%d</td>", $stat_statuscode{$key}{'count'});
+
+        }
+        print(FH_OUT "</tr>\n</table>\n");
+
+        # 拡張子別の統計結果一覧を表示する
+        print(FH_OUT "<p>ファイル拡張子別統計</p><table>\n<tr>\n");
+        for my $key (sort keys %stat_ext){
+            printf(FH_OUT "<td>%s</td>", $stat_ext{$key}{'disp'});
+        }
+        print(FH_OUT "</tr>\n<tr>\n");
+        for my $key (sort keys %stat_ext){
+            printf(FH_OUT "<td>%d</td>", $stat_ext{$key}{'count'});
+
+        }
+        print(FH_OUT "</tr>\n</table>\n");
+        ##### 統計を出力
+
     };
+    if($@) {
+        # エラー発生時に、このプログラムのエラーログに出力
+        sub_write_errorlog('read log:'.$@);
+        exit;
+    }
+
     return;
 }
 
 # 統計を取る
 sub sub_stat_log {
-    my $ref_stat = shift;   # 引数：統計ハッシュ
     my $str = shift;        # 引数：解析文字列（HTTPコマンド文字列）
     my $code = shift;       # 引数：HTTPリザルトコード
     my $flag_mode = shift;  # 引数：機能スイッチ
     
-    # 統計用ハッシュを初期化する
+    # 統計用ハッシュのカウンタ値を全てゼロクリア
     if($flag_mode eq 'hash_init') {
-        $$ref_stat{'.html'} = 0;
-        $$ref_stat{'.php'} = 0;
-        $$ref_stat{'.cgi'} = 0;
-        $$ref_stat{'.jpg'} = 0;
-        $$ref_stat{'.png'} = 0;
-        $$ref_stat{'.gif'} = 0;
-        $$ref_stat{'.pdf'} = 0;
-        $$ref_stat{'.lzh'} = 0;
-        $$ref_stat{'.zip'} = 0;
-        $$ref_stat{'.other'} = 0;
-
-        $$ref_stat{'all'} = 0;
-
-        $$ref_stat{'2xx'} = 0;
-        $$ref_stat{'3xx'} = 0;
-        $$ref_stat{'4xx'} = 0;
-        $$ref_stat{'5xx'} = 0;
+        for my $key (keys %stat_ext){
+            $stat_ext{$key}{'count'} = 0;
+        }
+        for my $key (keys %stat_statuscode){
+            $stat_statuscode{$key}{'count'} = 0;
+        }
         return;
     }
-    
-    # 全体のカウンタ
-    $$ref_stat{'all'}++;
-    
-    # 拡張子別のカウンタ
+
+    # 拡張子別の統計を取る
     my @arr = split(/\s|\?/, $str);
-    if($#arr <=1){ $$ref_stat{'.other'}++; }
-    else {
-        if($arr[1] =~ m/.htm$|.html$|.shtml$/){ $$ref_stat{'.html'}++; }
-        elsif($arr[1] =~ m/.php$/){ $$ref_stat{'.php'}++; }
-        elsif($arr[1] =~ m/.cgi$/){ $$ref_stat{'.cgi'}++; }
-        elsif($arr[1] =~ m/.jpg$|.jpeg$/){ $$ref_stat{'.jpg'}++; }
-        elsif($arr[1] =~ m/.png$/){ $$ref_stat{'.png'}++; }
-        elsif($arr[1] =~ m/.gif$/){ $$ref_stat{'.gif'}++; }
-        elsif($arr[1] =~ m/.pdf$/){ $$ref_stat{'.pdf'}++; }
-        elsif($arr[1] =~ m/.lzh$/){ $$ref_stat{'.lzh'}++; }
-        elsif($arr[1] =~ m/.zip$|.gz$/){ $$ref_stat{'.zip'}++; }
-        else{ $$ref_stat{'.other'}++; }
+    if($#arr <=1){
+        # HTTPコマンド文字列の分離に失敗した場合
+        $stat_ext{'ext__error'}{'count'}++;
+        $stat_ext{'ext__all'}{'count'}++;
     }
-    
-    # HTTPリザルトコード別のカウンタ
-    if($code >= 200 && $code <= 299){ $$ref_stat{'2xx'}++; }
-    elsif($code >= 300 && $code <= 399){ $$ref_stat{'3xx'}++; }
-    elsif($code >= 400 && $code <= 499){ $$ref_stat{'4xx'}++; }
-    elsif($code >= 500 && $code <= 599){ $$ref_stat{'5xx'}++; }
+    else {
+        my $countup_stat_ext = 0;
+        for my $key (keys %stat_ext){
+            if($stat_ext{$key}{'pattern'} ne '' && $arr[1] =~ m/$stat_ext{$key}{'pattern'}/){
+                $stat_ext{$key}{'count'}++;
+                $countup_stat_ext = 1;
+            }
+        }
+        if(!$countup_stat_ext){ $stat_ext{'ext__other'}{'count'}++; }
+        $stat_ext{'ext__all'}{'count'}++;
+    }
+
+    # リザルトコード別の統計を取る
+    for my $key (keys %stat_statuscode){
+        if($stat_statuscode{$key}{'min'} <= $code && $code <= $stat_statuscode{$key}{'max'}){
+            $stat_statuscode{$key}{'count'}++;
+        }
+    }
     
 }
 
@@ -341,12 +363,12 @@ sub sub_read_errorlogfile {
     my $str_curline = '';   # エラー出力用に現在行を保存
 
     eval {
-        # HTMLファイルの開始部分（<html>〜<table>開始まで）をファイル出力
-        sub_output_html_header(*FH_OUT, 'table_error');
 
+        ##### ログファイルを1行ずつ読み込んで順次処理（TABLE形式で出力）
         # 入力用, Apacheログファイルを開く
         open(FH_LOG, '<'.$log_filename) or die("Log File open error");
-        # ログファイルを1行ずつ読み込んで順次処理
+        # HTMLファイルの開始部分（<html>〜<table>開始まで）をファイル出力
+        sub_output_html_header(*FH_OUT, 'table_error');
         while(<FH_LOG>){
             chomp;
             my $str = $_;
@@ -354,11 +376,15 @@ sub sub_read_errorlogfile {
             # ログ行をパターンマッチングして分解し $1,$2 ... に格納
             # 書式：『 [Sat Apr 23 00:26:54 2011] [notice] caught SIGTERM, shutting down 』
             $str =~ m/\[\S+\s+(\S+)\s+(\d+)\s+(\S+)\s+(\d{4})\]\s+\[(\w+)\]\s(.*)$/;
-            my $datestr = "$2/$1/$4:$3 +0900";
-            my $errcode = $5;
-            my $msgstr = $6;
-            my ($year, $month, $day, $hour, $min, $sec, $tz) = HTTP::Date::parse_date($datestr);
-
+            # 日付を「23/Apr/2011:00:26:54」の形式にする
+            my $datestr = (defined($1) && defined($2) && defined($3) && defined($4)) ? "$2/$1/$4:$3 +0900" : '1/Jan/1970:00:00:00';
+            my $errcode = defined($5) ? $5 : '-----';
+            my $msgstr = defined($6) ? $6 : $str;
+            my ($year, $month, $day, $hour, $min, $sec, $tz);
+            ($year, $month, $day, $hour, $min, $sec, $tz) = HTTP::Date::parse_date($datestr) or do {
+                # parse_dateが失敗した場合
+                ($year, $month, $day, $hour, $min, $sec) = (1970, 1, 1, 0, 0, 0);
+            };
             # HTTPリザルトコードによる背景色の色分け
             my $str_color = '';
             if($errcode eq 'notice'){ $str_color = ' style="background-color:#e2edbe;"'; }
@@ -369,11 +395,12 @@ sub sub_read_errorlogfile {
         }
         close(FH_LOG) or die;
         print(FH_OUT "</table>\n");
-    } or do {
-        # エラー発生時に、このプログラムのエラーログに出力
-        sub_write_errorlog($@);
-        exit;
     };
+    if($@) {
+        # エラー発生時に、このプログラムのエラーログに出力
+        sub_write_errorlog('read errorlog:'.$@);
+        exit;
+    }
     return;
 }
 
@@ -394,6 +421,11 @@ sub sub_output_html_header {
                 "   <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" />\n".
                 "   <meta http-equiv=\"Content-Language\" content=\"ja\" />\n".
                 "   <title>Apache log report (".$date_str.")</title>\n".
+                "   <style type=\"text/css\">\n".
+                "   body { font-size:14px;}\n".
+                "   table { border-color: rgb(0,0,0); border-collapse: collapse; padding: 1px; border-width: 1px; border-style: solid; font-size: 12px;}\n".
+                "   td { border-width: 1px; border-style: solid;}\n".
+                "   </style>\n".
                 "</head>\n".
                 "<body style=\"font-size:14px;\">\n".
                 "<p>Apache log report</p>\n".
@@ -407,22 +439,31 @@ sub sub_output_html_header {
                 "<table style=\"border-color: rgb(0,0,0); border-collapse: collapse; font-size: 12px;\" border=\"1\" cellpadding=\"0\" cellspacing=\"1\">\n".
                 "<tr><td>日時</td><td>code</td><td>エラーメッセージ</td></tr>\n") or die;
         }
-    } or do {
-        # エラー発生時に、このプログラムのエラーログに出力
-        sub_write_errorlog($@);
-        exit;
     };
+    if($@) {
+        # エラー発生時に、このプログラムのエラーログに出力
+        sub_write_errorlog('write html head:'.$@);
+        exit;
+    }
 
 }
 
-# レポートファイルの存在するディレクトリ内htmlファイルの一覧を作成する
-sub sub_make_logfile_index {
-    my $scan_directory = shift;
-    my $index_filename = shift;
 
+# 一覧HTML作成（レポートファイル一覧と、過去１０日分の統計表）
+sub sub_make_logfile_index {
+    my $scan_directory = shift;     # 引数：レポートファイルの存在するディレクトリ名
+    my $index_filename = shift;     # 引数：一覧HTMLファイル名
+    my $tm = shift;
+
+    my ($sec, $min, $hour, $day, $month, $year) = localtime($tm);
+    $tm = Time::Local::timelocal(0, 0, 0, $day, $month, $year); # 年月日のみ残す
+    
     eval {
+        ##### レポートファイル一覧（各ファイルへのリンク形式）をHTML出力
         # ディレクトリ内のHTMLファイルを検索し、パス名を配列に格納
         my @arr_files = glob($scan_directory.'*.html');
+        # パス名をソート（最新日付が最初に来るようにする）
+        @arr_files = sort { $b cmp $a } @arr_files;
         open(FH, '>'.$index_filename) or die;
         # 出力文字コードの指定
         binmode(FH, ":utf8");
@@ -436,14 +477,229 @@ sub sub_make_logfile_index {
             # A LINK形式で出力
             printf(FH "<p><a href=\"%s\">%s</a></p>\n",$_,$_) or die;
         }
+        ##### レポートファイル一覧（各ファイルへのリンク形式）をHTML出力
+
+        ##### 統計データをHTML出力
+        # ステータスコード別統計結果（過去１０日分）
+        print(FH "<table>\n<tr>\n<td>date</td>");
+        for my $key (sort keys %stat_statuscode){
+            printf(FH "<td>%s</td>", $stat_statuscode{$key}{'disp'});
+        }
+        print(FH "</tr>\n");
+        for(my $i=0; $i<10; $i++){
+            sub_stat_readfrom_db($tm-$i*60*60*24);
+            ($sec, $min, $hour, $day, $month, $year) = localtime($tm-$i*60*60*24);
+            printf(FH "<tr>\n<td>%04d/%02d/%02d</td>", $year+1900, $month+1, $day);
+            for my $key (sort keys %stat_statuscode){
+                printf(FH "<td>%d</td>", $stat_statuscode{$key}{'count'});
+
+            }
+            print(FH "</tr>\n");
+        }
+        print(FH "</table>\n");
+
+        # ファイル拡張子別統計結果（過去１０日分）
+        print(FH "<table>\n<tr>\n<td>date</td>");
+        for my $key (sort keys %stat_ext){
+            printf(FH "<td>%s</td>", $stat_ext{$key}{'disp'});
+        }
+        print(FH "</tr>\n");
+        for(my $i=0; $i<10; $i++){
+            sub_stat_readfrom_db($tm-$i*60*60*24);
+            ($sec, $min, $hour, $day, $month, $year) = localtime($tm-$i*60*60*24);
+            printf(FH "<tr>\n<td>%04d/%02d/%02d</td>", $year+1900, $month+1, $day);
+            for my $key (sort keys %stat_ext){
+                printf(FH "<td>%d</td>", $stat_ext{$key}{'count'});
+
+            }
+            print(FH "</tr>\n");
+        }
+        print(FH "</table>\n");
+        ##### 統計データをHTML出力
+
+
         print(FH "</body>\n</html>\n");
         close(FH);
-    } or do {
-        # エラー発生時に、このプログラムのエラーログに出力
-        sub_write_errorlog($@);
-        exit;
     };
+    if($@) {
+        # エラー発生時に、このプログラムのエラーログに出力
+        sub_write_errorlog('index file:'.$@);
+        exit;
+    }
 
+}
+
+
+# 統計データをDBに書きこむ
+sub sub_stat_writeto_db {
+    my $tm = shift;         # 引数：対象日時
+
+    my $db_filename = $FindBin::Bin . '/' . File::Basename::basename($0) . '.sqlite';
+    my $dsn = 'DBI:SQLite:dbname='.$db_filename;
+    my $dbh = undef;
+    my ($sec, $min, $hour, $day, $month, $year) = localtime($tm);
+    $tm = Time::Local::timelocal(0, 0, 0, $day, $month, $year); # DB書き込み用に時刻クリア
+
+    eval {
+        # SQLサーバに接続
+        $dbh = DBI->connect($dsn, "", "", {PrintError => 0, AutoCommit => 1}) or die(DBI::errstr);
+
+        # statテーブルが存在するか確認する
+        my $str_query = "SELECT * FROM sqlite_master WHERE type='table' AND name='stat'";
+        my $sth = $dbh->prepare($str_query) or die(DBI::errstr);
+        $sth->execute() or die(DBI::errstr);
+        my @row = $sth->fetchrow_array();
+        $sth->finish() or die(DBI::errstr);
+        $sth = undef;	# 再利用するためundef
+
+
+        ##### statテーブルの新規作成（テーブルが存在しない場合）
+        if(!@row) {
+            # テーブルのカラム名定義を作成する
+            my $str_column_sql = "'date' INTEGER DEFAULT 0,";
+            for my $key (keys %stat_ext){
+                $str_column_sql .= "'$key' INTEGER DEFAULT 0,";
+            }
+            for my $key (keys %stat_statuscode){
+                $str_column_sql .= "'$key' INTEGER DEFAULT 0,";
+            }
+            chop($str_column_sql);  # 最後の 「コンマ」 を削除
+
+            # CREATE TABLE 実行
+            $str_query = "CREATE TABLE stat (".
+                "'idx' INTEGER PRIMARY KEY AUTOINCREMENT,".$str_column_sql.")";
+            $sth = $dbh->prepare($str_query) or die(DBI::errstr);
+            $sth->execute() or die(DBI::errstr);
+            $sth->finish() or die(DBI::errstr);
+            $sth = undef;	# 再利用するためundef
+        }
+        ##### statテーブルの新規作成（テーブルが存在しない場合）
+
+
+        ##### 「date=$tm」データ行を検索し、存在すれば行削除
+        # statテーブル内に $tm のデータが存在するか確認する
+        $str_query = "SELECT COUNT (*) FROM stat WHERE date='$tm'";
+        $sth = $dbh->prepare($str_query) or die(DBI::errstr);
+        $sth->execute() or die(DBI::errstr);
+        @row = $sth->fetchrow_array();
+        $sth->finish() or die(DBI::errstr);
+        $sth = undef;	# 再利用するためundef
+
+        # $tmのデータが存在する場合は、一旦その行を削除
+        if($row[0] ne '0') {
+            $str_query = "DELETE FROM stat WHERE date='$tm'";
+            $sth = $dbh->prepare($str_query) or die(DBI::errstr);
+            $sth->execute() or die(DBI::errstr);
+            @row = $sth->fetchrow_array();
+            $sth->finish() or die(DBI::errstr);
+            $sth = undef;	# 再利用するためundef
+        }
+        ##### 「date=$tm」データ行を検索し、存在すれば行削除
+
+
+        ##### データ新規追加
+        # テーブルのカラム名定義を作成する
+        my $str_column_sql = "'date',";
+        my @arr_values_sql = ();
+        push(@arr_values_sql, $tm);
+        my $str_placeholder = '?,';
+        for my $key (keys %stat_ext){
+            $str_column_sql .= "'$key',";
+            push(@arr_values_sql, $stat_ext{$key}{'count'});
+            $str_placeholder .= '?,';
+        }
+        for my $key (keys %stat_statuscode){
+            $str_column_sql .= "'$key',";
+            push(@arr_values_sql, $stat_statuscode{$key}{'count'});
+            $str_placeholder .= '?,';
+        }
+        chop($str_column_sql);  # 最後の 「コンマ」 を削除
+        chop($str_placeholder);  # 最後の 「コンマ」 を削除
+
+        # INSERT文 実行
+        $str_query = "INSERT INTO stat (".$str_column_sql.") VALUES (".$str_placeholder.")";
+        $sth = $dbh->prepare($str_query) or die(DBI::errstr);
+        $sth->execute(@arr_values_sql) or die(DBI::errstr);
+        $sth->finish() or die(DBI::errstr);
+        $sth = undef;	# 再利用するためundef
+        ##### データ新規追加
+
+        # DBを閉じる
+        $dbh->disconnect() or die(DBI::errstr);
+
+    };
+    if($@) {
+        # エラー発生時に、このプログラムのエラーログに出力
+        if(defined($dbh)){ $dbh->disconnect(); }
+        sub_write_errorlog('DB write:'.$@);
+        exit;
+    }
+}
+
+# 統計データをDBから読み出す
+sub sub_stat_readfrom_db {
+    my $tm = shift;         # 引数：対象日時
+
+    # 統計データを格納する前にゼロクリア
+    sub_stat_log('', 0, 'hash_init');
+
+    my $db_filename = $FindBin::Bin . '/' . File::Basename::basename($0) . '.sqlite';
+    my $dsn = 'DBI:SQLite:dbname='.$db_filename;
+    my $dbh = undef;
+
+    my ($sec, $min, $hour, $day, $month, $year) = localtime($tm);
+    $tm = Time::Local::timelocal(0, 0, 0, $day, $month, $year); # DB書き込み用に時刻クリア
+
+    eval {
+        # SQLサーバに接続
+        $dbh = DBI->connect($dsn, "", "", {PrintError => 0, AutoCommit => 1}) or die(DBI::errstr);
+
+        ##### データ読み出し
+        # クエリ文を作成する
+        my $str_column_sql = "";
+        my @arr_keys_sql = ();
+        for my $key (keys %stat_ext){
+            $str_column_sql .= "$key,";
+            push(@arr_keys_sql, $key);
+        }
+        for my $key (keys %stat_statuscode){
+            $str_column_sql .= "$key,";
+            push(@arr_keys_sql, $key);
+        }
+        chop($str_column_sql);  # 最後の 「コンマ」 を削除
+
+        # SELECT文 実行
+        my $str_query = "SELECT ".$str_column_sql." FROM stat WHERE date='$tm'";
+        my $sth = $dbh->prepare($str_query) or die(DBI::errstr);
+        $sth->execute() or die(DBI::errstr);
+        my @row = $sth->fetchrow_array();
+        $sth->finish() or die(DBI::errstr);
+        $sth = undef;	# 再利用するためundef
+
+        # DBを閉じる
+        if(defined($dbh)) { $dbh->disconnect() or die(DBI::errstr); }
+
+        ##### データ読み出し
+
+        # データが存在した場合、統計ハッシュ（のカウンタ値）に代入する
+        # （１次ハッシュのキー文字列の先頭３文字で、%stat_extと %stat_statuscodeへの振り分けを判断）
+        if($#row>0) {
+            for(my $i=0; $i<=$#row; $i++) {
+                if(substr($arr_keys_sql[$i], 0, 3) eq 'ext'){
+                    $stat_ext{$arr_keys_sql[$i]}{'count'} = $row[$i];
+                }
+                if(substr($arr_keys_sql[$i], 0, 3) eq 'cod'){
+                    $stat_statuscode{$arr_keys_sql[$i]}{'count'} = $row[$i];
+                }
+            }
+        }
+    };
+    if($@) {
+        # エラー発生時に、このプログラムのエラーログに出力
+        if(defined($dbh)){ $dbh->disconnect(); }
+        sub_write_errorlog('DB read:'.$@);
+        return;     # ログが読めない場合でも、全データをゼロクリアした状態で制御を戻す
+    }
 }
 
 # gz圧縮ファイルを（同一ディレクトリ内に）解凍する
@@ -467,11 +723,12 @@ sub sub_extract_gzlog {
             close(FH) or die;
             $gz->gzclose() or die;
         }
-    } or do {
-        # エラー発生時に、このプログラムのエラーログに出力
-        sub_write_errorlog($@);
-        exit;
     };
+    if($@) {
+        # エラー発生時に、このプログラムのエラーログに出力
+        sub_write_errorlog('unzip:'.$@);
+        exit;
+    }
 }
 
 # エラーログファイルに1行出力する
@@ -482,7 +739,7 @@ sub sub_write_errorlog {
     my ($sec, $min, $hour, $day, $month, $year) = localtime();
     printf(FH_MSG "%04d/%02d/%02d-%02d:%02d:%02d,%s\n", $year+1900, $month+1, $day, $hour, $min, $sec, $str_msg) or die;
     close(FH_MSG) or die;
-    if($#ARGV != 0) { print($str_msg."\n"); }
+    if($#ARGV != 0) { print("(error) ".$str_msg."\n"); }
     return;
 }
 
