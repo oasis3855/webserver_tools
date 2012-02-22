@@ -10,7 +10,8 @@
 # parse-apache-log.pl
 # version 0.1 (2012/Feb/04)
 # version 0.2 (2012/Feb/07)
-# Version 0.3 (2012/Feb/20)
+# Version 0.3 (2012/Feb/20) Database
+# Version 0.4 (2012/Feb/21) Google Visualization Graph
 #
 # GNU GPL Free Software
 #
@@ -74,7 +75,7 @@ if($flag_use_zlib == 1) {
     use Compress::Zlib;
 }
 use DBI qw(:sql_types);
-use FindBin qw/$Bin/;	# サーバ上でのフルパス名を得るため
+use FindBin qw/$Bin/;   # サーバ上でのフルパス名を得るため
 
 sub_main();
 exit;
@@ -426,6 +427,7 @@ sub sub_output_html_header {
                 "   table { border-color: rgb(0,0,0); border-collapse: collapse; padding: 1px; border-width: 1px; border-style: solid; font-size: 12px;}\n".
                 "   td { border-width: 1px; border-style: solid;}\n".
                 "   </style>\n".
+                "   <script type=\"text/javascript\" src=\"http://www.google.com/jsapi\"></script>\n".
                 "</head>\n".
                 "<body style=\"font-size:14px;\">\n".
                 "<p>Apache log report</p>\n".
@@ -471,17 +473,119 @@ sub sub_make_logfile_index {
         sub_output_html_header(*FH, 'html_head');
         print(FH "<p><a href=\"$error_message_filename\">エラー出力を表示する</a></p>\n") or die;
         # 見つかったHTMLファイル名1個ずつを出力処理
+        my $i = 0;
+        print(FH "<p>\n");
         foreach(@arr_files){
             # ディレクトリ名部分を除去
             $_ =~ s/^$scan_directory//;
             # A LINK形式で出力
-            printf(FH "<p><a href=\"%s\">%s</a></p>\n",$_,$_) or die;
+            printf(FH "<a href=\"%s\">%s</a> ",$_,$_) or die;
+            if(!(++$i%5)){ print(FH "<br />\n"); }
+            if($i>50){ print(FH " …以降省略\n"); last; }
         }
+        print(FH "</p>\n");
         ##### レポートファイル一覧（各ファイルへのリンク形式）をHTML出力
+
+
+        ##### 統計データをGoogle Visualization グラフ出力（Java Script部）
+        # 抽出日数
+        my $num_days = 60;
+
+        my $str_graph = "\t<script type=\"text/javascript\">\n\n".
+        "\t// Load the Visualization API\n".
+        "\tgoogle.load('visualization', '1', {'packages':['corechart']});\n".
+        "\t// Set a callback to run when the Google Visualization API is loaded.\n".
+        "\tgoogle.setOnLoadCallback(drawChart);\n\n".
+        "\t// Callback that creates and populates a data table, \n".
+        "\t// instantiates the pie chart, passes in the data and\n".
+        "\t// draws it.\n".
+        "\tfunction drawChart() {\n\n";
+
+        $str_graph .= "\t\t// HTMLステータスコード別統計グラフ\n".
+        "\t\tvar data_stat_statuscode = new google.visualization.DataTable();\n".
+        "\t\tdata_stat_statuscode.addColumn('string', '期間');\n";
+
+        for my $key (sort keys %stat_statuscode){
+            $str_graph .= "\t\tdata_stat_statuscode.addColumn('number', '".$stat_statuscode{$key}{'disp'}."');\n";
+        }
+        $str_graph .= "\t\tdata_stat_statuscode.addRows([\n";
+        for(my $j=0; $j<$num_days; $j++)
+        {
+            ($sec, $min, $hour, $day, $month, $year) = localtime($tm-($num_days-$j-1)*60*60*24);
+            my $str_temp = sprintf("%04d/%02d/%02d", $year+1900, $month+1, $day);
+            $str_graph .= "\t\t\t['".$str_temp."',";
+            sub_stat_readfrom_db($tm-($num_days-$j-1)*60*60*24);
+            my $i = 0;
+            for my $key (sort keys %stat_statuscode){
+                $str_graph .= $stat_statuscode{$key}{'count'}.",";
+            }
+            chop($str_graph);   # 最後のコンマを除去
+            $str_graph .= "],\n";
+        }
+        chop($str_graph);   # 最後の改行を除去
+        chop($str_graph);   # 最後のコンマを除去
+        $str_graph .= "\n\t\t]);\n".
+        "\t\tvar chart_stat_statuscode = new google.visualization.LineChart(document.getElementById('google_graph_stat_statuscode'));\n".
+        "\t\tchart_stat_statuscode.draw(data_stat_statuscode, {width: 600, height: 200, chartArea:{height: '95%'}, title: 'HTMLステータスコード別統計', titlePosition: 'in', vAxis:{title: 'アクセス数'} });\n\n".
+        "\n";
+
+        $str_graph .= "\t\t// 拡張子別統計グラフ\n".
+        "\t\tvar data_stat_ext = new google.visualization.DataTable();\n".
+        "\t\tdata_stat_ext.addColumn('string', '期間');\n";
+
+        for my $key (sort keys %stat_ext){
+            if($key eq 'ext__all' || $key eq 'ext__error'){ next; }
+            $str_graph .= "\t\tdata_stat_ext.addColumn('number', '".$stat_ext{$key}{'disp'}."');\n";
+        }
+        $str_graph .= "\t\tdata_stat_ext.addRows([\n";
+        for(my $j=0; $j<$num_days; $j++)
+        {
+            ($sec, $min, $hour, $day, $month, $year) = localtime($tm-($num_days-$j-1)*60*60*24);
+            my $str_temp = sprintf("%04d/%02d/%02d", $year+1900, $month+1, $day);
+            $str_graph .= "\t\t\t['".$str_temp."',";
+            sub_stat_readfrom_db($tm-($num_days-$j-1)*60*60*24);
+            for my $key (sort keys %stat_ext){
+                if($key eq 'ext__all' || $key eq 'ext__error'){ next; }
+                $str_graph .= $stat_ext{$key}{'count'}.",";
+            }
+            chop($str_graph);   # 最後のコンマを除去
+            $str_graph .= "],\n";
+        }
+        chop($str_graph);   # 最後の改行を除去
+        chop($str_graph);   # 最後のコンマを除去
+        $str_graph .= "\n\t\t]);\n".
+        "\t\tvar chart_stat_ext = new google.visualization.LineChart(document.getElementById('google_graph_stat_ext'));\n".
+        "\t\tchart_stat_ext.draw(data_stat_ext, {width: 600, height: 200, chartArea:{height: '95%'}, title: '拡張子別統計', titlePosition: 'in', vAxis:{title: 'アクセス数'} });\n\n".
+        "\n";
+
+        $str_graph .= "\t\t// html+php統計グラフ\n".
+        "\t\tvar data_stat_html = new google.visualization.DataTable();\n".
+        "\t\tdata_stat_html.addColumn('string', '期間');\n".
+        "\t\tdata_stat_html.addColumn('number', 'html');\n".
+        "\t\tdata_stat_html.addColumn('number', 'php');\n";
+        $str_graph .= "\t\tdata_stat_html.addRows([\n";
+        for(my $j=0; $j<$num_days; $j++)
+        {
+            sub_stat_readfrom_db($tm-($num_days-$j-1)*60*60*24);
+            ($sec, $min, $hour, $day, $month, $year) = localtime($tm-($num_days-$j-1)*60*60*24);
+            my $str_temp = sprintf("%04d/%02d/%02d", $year+1900, $month+1, $day);
+            $str_graph .= "\t\t\t['".$str_temp."',".$stat_ext{'ext_html'}{'count'}.
+                ",".$stat_ext{'ext_php'}{'count'}."],\n";
+        }
+        chop($str_graph);   # 最後の改行を除去
+        chop($str_graph);   # 最後のコンマを除去
+        $str_graph .= "\n\t\t]);\n".
+        "\t\tvar chart_stat_html = new google.visualization.LineChart(document.getElementById('google_graph_stat_html'));\n".
+        "\t\tchart_stat_html.draw(data_stat_html, {width: 600, height: 200, chartArea:{height: '95%'}, title: '拡張子html,php統計', titlePosition: 'in', vAxis:{title: 'アクセス数'} });\n\n".
+        "\t}\n".
+        "\t</script>\n";
+        print(FH $str_graph);
+        ##### 統計データをGoogle Visualization グラフ出力（Java Script部）
+
 
         ##### 統計データをHTML出力
         # ステータスコード別統計結果（過去１０日分）
-        print(FH "<table>\n<tr>\n<td>date</td>");
+        print(FH "<p>HTMLステータスコード別集計</p>\n<table>\n<tr>\n<td>date</td>");
         for my $key (sort keys %stat_statuscode){
             printf(FH "<td>%s</td>", $stat_statuscode{$key}{'disp'});
         }
@@ -498,8 +602,11 @@ sub sub_make_logfile_index {
         }
         print(FH "</table>\n");
 
+        ##### 統計データをGoogle Visualization グラフ出力
+        print(FH "<div id=\"google_graph_stat_statuscode\"></div>\n");
+
         # ファイル拡張子別統計結果（過去１０日分）
-        print(FH "<table>\n<tr>\n<td>date</td>");
+        print(FH "<p>ファイル拡張子別集計</p>\n<table>\n<tr>\n<td>date</td>");
         for my $key (sort keys %stat_ext){
             printf(FH "<td>%s</td>", $stat_ext{$key}{'disp'});
         }
@@ -515,7 +622,13 @@ sub sub_make_logfile_index {
             print(FH "</tr>\n");
         }
         print(FH "</table>\n");
+        ##### 統計データをGoogle Visualization グラフ出力
+        print(FH "<div id=\"google_graph_stat_ext\"></div>\n".
+            "<div id=\"google_graph_stat_html\"></div>\n");
         ##### 統計データをHTML出力
+
+
+
 
 
         print(FH "</body>\n</html>\n");
@@ -550,7 +663,7 @@ sub sub_stat_writeto_db {
         $sth->execute() or die(DBI::errstr);
         my @row = $sth->fetchrow_array();
         $sth->finish() or die(DBI::errstr);
-        $sth = undef;	# 再利用するためundef
+        $sth = undef;   # 再利用するためundef
 
 
         ##### statテーブルの新規作成（テーブルが存在しない場合）
@@ -571,7 +684,7 @@ sub sub_stat_writeto_db {
             $sth = $dbh->prepare($str_query) or die(DBI::errstr);
             $sth->execute() or die(DBI::errstr);
             $sth->finish() or die(DBI::errstr);
-            $sth = undef;	# 再利用するためundef
+            $sth = undef;   # 再利用するためundef
         }
         ##### statテーブルの新規作成（テーブルが存在しない場合）
 
@@ -583,7 +696,7 @@ sub sub_stat_writeto_db {
         $sth->execute() or die(DBI::errstr);
         @row = $sth->fetchrow_array();
         $sth->finish() or die(DBI::errstr);
-        $sth = undef;	# 再利用するためundef
+        $sth = undef;   # 再利用するためundef
 
         # $tmのデータが存在する場合は、一旦その行を削除
         if($row[0] ne '0') {
@@ -592,7 +705,7 @@ sub sub_stat_writeto_db {
             $sth->execute() or die(DBI::errstr);
             @row = $sth->fetchrow_array();
             $sth->finish() or die(DBI::errstr);
-            $sth = undef;	# 再利用するためundef
+            $sth = undef;   # 再利用するためundef
         }
         ##### 「date=$tm」データ行を検索し、存在すれば行削除
 
@@ -621,7 +734,7 @@ sub sub_stat_writeto_db {
         $sth = $dbh->prepare($str_query) or die(DBI::errstr);
         $sth->execute(@arr_values_sql) or die(DBI::errstr);
         $sth->finish() or die(DBI::errstr);
-        $sth = undef;	# 再利用するためundef
+        $sth = undef;   # 再利用するためundef
         ##### データ新規追加
 
         # DBを閉じる
@@ -674,7 +787,7 @@ sub sub_stat_readfrom_db {
         $sth->execute() or die(DBI::errstr);
         my @row = $sth->fetchrow_array();
         $sth->finish() or die(DBI::errstr);
-        $sth = undef;	# 再利用するためundef
+        $sth = undef;   # 再利用するためundef
 
         # DBを閉じる
         if(defined($dbh)) { $dbh->disconnect() or die(DBI::errstr); }
