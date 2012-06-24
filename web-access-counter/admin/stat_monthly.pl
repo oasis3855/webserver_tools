@@ -10,6 +10,7 @@
 # stat_monthly.pl
 #
 # version 3.0, 2011/03/26  utf8化
+# version 3.0.1, 2012/06/24  Google Chart Tool API verup
 #
 # GNU GPL Free Software
 #
@@ -90,6 +91,12 @@ my @arr_PopularPage = ();	# 統計データ（アクセス数の多いページ�
 my $nBrowserTopic = 0;	# ブラウザ統計項目数
 my $nOsTopic = 0;	# OS統計項目数
 my $nPopularPages = 0;
+
+# 出力HTML用定義
+my $strHtmlBackgroundColor = '#f3f3f3';
+my $strHtmlH1LineColor = '#7e7e7e';
+my $strHtmlH2LineColor = '#a7a7a7';
+my $strHtmlTableGridColor = '#7e7e7e';
 
 # 一時変数
 
@@ -369,10 +376,7 @@ if(open(OUT, "> $str_filepath_out")){
 
 	$strTmp = "\t<script type=\"text/javascript\">\n\n".
 		"\t// Load the Visualization API\n".
-		"\tgoogle.load('visualization', '1', {'packages':['piechart']});\n".
-		"\tgoogle.load('visualization', '1', {'packages':['barchart']});\n".
-		"\tgoogle.load('visualization', '1', {'packages':['linechart']});\n\n".
-		"\tgoogle.load('visualization', '1', {'packages':['areachart']});\n\n".
+		"\tgoogle.load('visualization', '1', {'packages':['corechart']});\n".
 		"\t// Set a callback to run when the Google Visualization API is loaded.\n".
 		"\tgoogle.setOnLoadCallback(drawChart);\n\n".
 		"\t// Callback that creates and populates a data table, \n".
@@ -381,79 +385,92 @@ if(open(OUT, "> $str_filepath_out")){
 		"\tfunction drawChart() {\n\n".
 
 		"\t\t// Create data_browser table.\n";
-		#期間内全アクセス数グラフ
-	$strTmp .= "\t\tvar data_allaccess = new google.visualization.DataTable();\n".
-		"\t\tdata_allaccess.addColumn('string', '期間');\n".
-		"\t\tdata_allaccess.addColumn('number', 'アクセス数');\n".
-		"\t\tdata_allaccess.addRows(".$n_stat_month.");\n";
+
+	#期間内全アクセス数グラフ
+	$strTmp .= "\t\tvar data_allaccess = new google.visualization.arrayToDataTable([\n".
+		"\t\t\t['期間', 'アクセス数'],\n";
 	for($j=0; $j<$n_stat_month; $j++)
 	{
-		$strTmp .= "\t\tdata_allaccess.setValue(".$j.", 0, '".($n_stat_month-$j-1)."ヶ月前');\n";
-		$strTmp .= "\t\tdata_allaccess.setValue(".$j.", 1, ".sprintf("%.1f", $arr_nSubTotalData[$n_stat_month-$j-1]/30.0).");\n";
+		$strTmp .= "\t\t\t['".($n_stat_month-$j-1)."ヶ月前', ".sprintf("%.1f", $arr_nSubTotalData[$n_stat_month-$j-1]/30.0)."],\n";
 	}
+	chop($strTmp);   # 最後の改行を除去
+	chop($strTmp);   # 最後のコンマを除去
+	$strTmp .= "\n\t\t]);\n";
 
-		#過去30日間アクセス数グラフ
-	$strTmp .= "\t\tvar data_dayaccess = new google.visualization.DataTable();\n".
-		"\t\tdata_dayaccess.addColumn('string', '日前');\n".
-		"\t\tdata_dayaccess.addColumn('number', 'アクセス数');\n".
-		"\t\tdata_dayaccess.addRows(30);\n";
+	#過去30日間アクセス数グラフ
+	$strTmp .= "\t\tvar data_dayaccess = new google.visualization.arrayToDataTable([\n".
+		"\t\t\t['日前', 'アクセス数'],\n";
 	for($j=0; $j<30; $j++)
 	{
-		$strTmp .= "\t\tdata_dayaccess.setValue(".$j.", 0, '-".(30-$j-1)."日');\n";
-		$strTmp .= "\t\tdata_dayaccess.setValue(".$j.", 1, ".$arr_nDayTotalData[30-$j-1].");\n";
+		$strTmp .= "\t\t\t['-".(30-$j-1)."日', ".$arr_nDayTotalData[30-$j-1]."],\n";
 	}
-
+	chop($strTmp);   # 最後の改行を除去
+	chop($strTmp);   # 最後のコンマを除去
+	$strTmp .= "\n\t\t]);\n";
 
 		#ブラウザ統計グラフ
-		$strTmp .= "\t\tvar data_browser = new google.visualization.DataTable();\n".
-		"\t\tdata_browser.addColumn('string', '期間');\n";
-
+	$strTmp .= "\t\tvar data_browser = new google.visualization.arrayToDataTable([\n".
+		"\t\t\t['期間', ";
 	for($j=0; $j<$nBrowserTopic; $j++)
 	{
-		$strTmp .= "\t\tdata_browser.addColumn('number', '".$arr_BrowserStatData[$j][1]."');\n";
+		$strTmp .= "'".$arr_BrowserStatData[$j][1]."',";
 	}
-	$strTmp .= "\t\tdata_browser.addRows(".$n_stat_month.");\n";
+	chop($strTmp);   # 最後のコンマを除去
+	$strTmp .= "],\n";
+
 	for($j=0; $j<$n_stat_month; $j++)
 	{
-		$strTmp .= "\t\tdata_browser.setValue(".$j.", 0, '".($n_stat_month-$j-1)."ヶ月前');\n";
+		$strTmp .= "\t\t\t['".($n_stat_month-$j-1)."ヶ月前',";
 		for($i=0; $i<$nBrowserTopic; $i++)
 		{
-			$strTmp .= "\t\tdata_browser.setValue(".$j.", ".($i+1).", ".sprintf("%.2f", $arr_BrowserStatData[$i][($n_stat_month-$j-1)+2]/($arr_nSubTotalData[$n_stat_month-$j-1]!=0?$arr_nSubTotalData[$n_stat_month-$j-1]:1000000)*100).");\n";
+			$strTmp .= sprintf("%.2f", $arr_BrowserStatData[$i][($n_stat_month-$j-1)+2]/($arr_nSubTotalData[$n_stat_month-$j-1]!=0?$arr_nSubTotalData[$n_stat_month-$j-1]:1000000)*100).",";
 		}
+		chop($strTmp);   # 最後のコンマを除去
+		$strTmp .= "],\n";
 	}
+	chop($strTmp);   # 最後の改行を除去
+	chop($strTmp);   # 最後のコンマを除去
+	$strTmp .= "\n\t\t]);\n";
 
-		# OS統計グラフ
-		$strTmp .= "\t\tvar data_os = new google.visualization.DataTable();\n".
-		"\t\tdata_os.addColumn('string', '期間');\n";
+	# OS統計グラフ
+	$strTmp .= "\t\tvar data_os = new google.visualization.arrayToDataTable([\n".
+		"\t\t\t['期間', ";
 
 	for($j=0; $j<$nOsTopic; $j++)
 	{
-		$strTmp .= "\t\tdata_os.addColumn('number', '".$arr_OsStatData[$j][1]."');\n";
+		$strTmp .= "'".$arr_OsStatData[$j][1]."',";
 	}
-	$strTmp .= "\t\tdata_os.addRows(".$n_stat_month.");\n";
+	chop($strTmp);   # 最後のコンマを除去
+	$strTmp .= "],\n";
+
 	for($j=0; $j<$n_stat_month; $j++)
 	{
-		$strTmp .= "\t\tdata_os.setValue(".$j.", 0, '".($n_stat_month-$j-1)."ヶ月前');\n";
+		$strTmp .= "\t\t\t['".($n_stat_month-$j-1)."ヶ月前',";
 		for($i=0; $i<$nOsTopic; $i++)
 		{
-			$strTmp .= "\t\tdata_os.setValue(".$j.", ".($i+1).", ".sprintf("%.2f", $arr_OsStatData[$i][($n_stat_month-$j-1)+2]/($arr_nSubTotalData[$n_stat_month-$j-1]!=0?$arr_nSubTotalData[$n_stat_month-$j-1]:100000)*100).");\n";
+			$strTmp .= sprintf("%.2f", $arr_OsStatData[$i][($n_stat_month-$j-1)+2]/($arr_nSubTotalData[$n_stat_month-$j-1]!=0?$arr_nSubTotalData[$n_stat_month-$j-1]:100000)*100).",";
 		}
+		chop($strTmp);   # 最後のコンマを除去
+		$strTmp .= "],\n";
 	}
+	chop($strTmp);   # 最後の改行を除去
+	chop($strTmp);   # 最後のコンマを除去
+	$strTmp .= "\n\t\t]);\n";
 
-	
+
 	$strTmp .= "\t\t// Instantiate and draw our chart, passing in some options.\n".
 
 		"\t\tvar chart_allaccess = new google.visualization.AreaChart(document.getElementById('google_graph_allaccess'));\n".
-		"\t\tchart_allaccess.draw(data_allaccess, {width: 700, height: 200, is3D: true, backgroundColor: '#ece1bf', legendBackgroundColor: '#ece1bf', axisColor: '#e5ad60', focusBorderColor: '#ff0000', colors: ['red'], legendFontSize: 10, titleFontSize: 18, axisFontSize: 12, title: '1ヶ月毎の日平均アクセス数', titleY: '(1日平均)'});\n\n".
+		"\t\tchart_allaccess.draw(data_allaccess, {width: 700, height: 200, is3D: true, backgroundColor: '".$strHtmlBackgroundColor."', legendBackgroundColor: '".$strHtmlBackgroundColor."', axisColor: '#e5ad60', focusBorderColor: '#ff0000', colors: ['red'], legendFontSize: 10, titleFontSize: 18, axisFontSize: 12, title: '1ヶ月毎の日平均アクセス数', titleY: '(1日平均)'});\n\n".
 
 		"\t\tvar chart_dayaccess = new google.visualization.AreaChart(document.getElementById('google_graph_dayaccess'));\n".
-		"\t\tchart_dayaccess.draw(data_dayaccess, {width: 700, height: 200, is3D: true, backgroundColor: '#ece1bf', legendBackgroundColor: '#ece1bf', axisColor: '#e5ad60', focusBorderColor: '#ff0000', colors: ['red'], legendFontSize: 10, titleFontSize: 18, axisFontSize: 12, title: '直近30日間の日毎アクセス数', titleY: '(件)'});\n\n".
+		"\t\tchart_dayaccess.draw(data_dayaccess, {width: 700, height: 200, is3D: true, backgroundColor: '".$strHtmlBackgroundColor."', legendBackgroundColor: '".$strHtmlBackgroundColor."', axisColor: '#e5ad60', focusBorderColor: '#ff0000', colors: ['red'], legendFontSize: 10, titleFontSize: 18, axisFontSize: 12, title: '直近30日間の日毎アクセス数', titleY: '(件)'});\n\n".
 
 		"\t\tvar chart_browser = new google.visualization.LineChart(document.getElementById('google_graph_browser'));\n".
-		"\t\tchart_browser.draw(data_browser, {width: 700, height: 400, is3D: true, backgroundColor: '#ece1bf', legendBackgroundColor: '#ece1bf', axisColor: '#e5ad60', focusBorderColor: '#ff0000', legendFontSize: 10, titleFontSize: 18, axisFontSize: 12, title: 'ブラウザ種別統計', titleY: '(%)'});\n\n".
+		"\t\tchart_browser.draw(data_browser, {width: 700, height: 400, is3D: true, backgroundColor: '".$strHtmlBackgroundColor."', legendBackgroundColor: '".$strHtmlBackgroundColor."', axisColor: '#e5ad60', focusBorderColor: '#ff0000', legendFontSize: 10, titleFontSize: 18, axisFontSize: 12, title: 'ブラウザ種別統計', titleY: '(%)'});\n\n".
 		
 		"\t\tvar chart_os = new google.visualization.LineChart(document.getElementById('google_graph_os'));\n".
-		"\t\tchart_os.draw(data_os, {width: 700, height: 400, is3D: true, backgroundColor: '#ece1bf', legendBackgroundColor: '#ece1bf', axisColor: '#e5ad60', focusBorderColor: '#ff0000', legendFontSize: 10, titleFontSize: 18, axisFontSize: 12, title: 'OS種別統計', titleY: '(%)'});\n\n".
+		"\t\tchart_os.draw(data_os, {width: 700, height: 400, is3D: true, backgroundColor: '".$strHtmlBackgroundColor."', legendBackgroundColor: '".$strHtmlBackgroundColor."', axisColor: '#e5ad60', focusBorderColor: '#ff0000', legendFontSize: 10, titleFontSize: 18, axisFontSize: 12, title: 'OS種別統計', titleY: '(%)'});\n\n".
 		
 		"\t}\n".
 		"\t</script>\n";
@@ -464,7 +481,7 @@ if(open(OUT, "> $str_filepath_out")){
 				"\t\tbody {\n".
 				"\t\t\tfont-family: sans-serif;\n".
 				"\t\t\tfont-size: 16px;\n".
-				"\t\t\tbackground-color: #ece1bf;\n".
+				"\t\t\tbackground-color: ".$strHtmlBackgroundColor.";\n".
 				"\t\t\tposition: relative;\n".
 				"\t\t\tmargin: 0 auto;\n".
 				"\t\t\tpadding: 0;\n".
@@ -479,7 +496,7 @@ if(open(OUT, "> $str_filepath_out")){
 				"\t\t\tmargin-bottom: 50px;\n".
 				"\t\t\tborder-width: 0px 0px 1px 0px;\n".
 				"\t\t\tborder-style: solid;\n".
-				"\t\t\tborder-bottom-color: maroon;\n".
+				"\t\t\tborder-bottom-color: ".$strHtmlH1LineColor.";\n".
 				"\t\t}\n\n".
 				"\t\tH2 {\n".
 				"\t\t\tfont-size: 14pt;\n".
@@ -489,16 +506,17 @@ if(open(OUT, "> $str_filepath_out")){
 				"\t\t\tline-height: 150%;\n".
 				"\t\t\tborder-width: 0px 0px 1px 1px;\n".
 				"\t\t\tborder-style: solid;\n".
-				"\t\t\tborder-bottom-color: olive;\n".
-				"\t\t\tborder-left-color: olive;\n".
+				"\t\t\tborder-bottom-color: ".$strHtmlH2LineColor.";\n".
+				"\t\t\tborder-left-color: ".$strHtmlH2LineColor.";\n".
 				"\t\t}\n\n".
 				"\t\ttable {\n".
-				"\t\t\tborder: 1px rgb(153, 51, 51) solid;\n".
+#				"\t\t\tborder: 1px rgb(153, 51, 51) solid;\n".
+				"\t\t\tborder: 1px ".$strHtmlTableGridColor." solid;\n".
 				"\t\t\tborder-collapse: collapse;\n".
 				"\t\t\tfont-size: 10pt;\n".
 				"\t\t}\n".
 				"\t\ttd, th {\n".
-				"\t\t\tborder: 1px rgb(153, 51, 51) solid;\n".
+				"\t\t\tborder: 1px ".$strHtmlTableGridColor." solid;\n".
 				"\t\t\tpadding: 2px;\n".
 				"\t\t}\n".
 				"\t</style>\n\n");
@@ -610,7 +628,7 @@ if(open(OUT, "> $str_filepath_out")){
 			"<li><a href=\"http://www.sqlite.org/\">SQLite3</a></li>\n".
 			"<li><a href=\"http://www.perl.com/\">Perl 5</a></li>\n".
 			"<li><a href=\"http://search.cpan.org/dist/DBI/DBI.pm\">CPAN DBI</a></li>\n".
-			"<li><a href=\"http://code.google.com/intl/es/apis/visualization/documentation/index.html\">Google Visualization API</a></li>\n".
+			"<li><a href=\"https://google-developers.appspot.com/chart/interactive/docs/gallery\">Google Chart Tools</a></li>\n".
 			"</ul>\n");
 
 	print(OUT  "</body>\n");
