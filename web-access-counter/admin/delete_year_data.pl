@@ -1,36 +1,36 @@
 #!/usr/bin/perl
 
-# save this file in << Shift JIS  >> encode !
+# save this file in << utf8  >> encode !
 
 use strict;
 
-# “ú•tƒIƒuƒWƒFƒNƒg‚ğ—p‚¢‚é
+# æ—¥ä»˜ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚’ç”¨ã„ã‚‹
 use Time::Local;
-# ƒf[ƒ^ƒx[ƒXƒIƒuƒWƒFƒNƒg‚ğ—p‚¢‚é
+# ãƒ‡ãƒ¼ã‚¿ãƒ™ãƒ¼ã‚¹ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚’ç”¨ã„ã‚‹
 use DBI;
 
 use URI::Escape;
 use Encode;
 use Encode::Guess;
 use File::Basename;
-use FindBin qw/$Bin/;	# ƒT[ƒoã‚Å‚Ìƒtƒ‹ƒpƒX–¼‚ğ“¾‚é‚½‚ß
+use FindBin qw/$Bin/;	# ã‚µãƒ¼ãƒä¸Šã§ã®ãƒ•ãƒ«ãƒ‘ã‚¹åã‚’å¾—ã‚‹ãŸã‚
 
-# ƒ~ƒŠ•b‚ğ—˜—p‚·‚é
+# ãƒŸãƒªç§’ã‚’åˆ©ç”¨ã™ã‚‹
 use Time::HiRes;
 
-# o—ÍCSVƒtƒ@ƒCƒ‹‚ğŒˆ’è‚·‚é•Ï”
+# å‡ºåŠ›CSVãƒ•ã‚¡ã‚¤ãƒ«ã‚’æ±ºå®šã™ã‚‹å¤‰æ•°
 my $nTargetYear = 0;
 my $strCsvFilename = $FindBin::Bin.'/../backup/';
 
-# ƒf[ƒ^ƒx[ƒX ƒnƒ“ƒhƒ‹
+# ãƒ‡ãƒ¼ã‚¿ãƒ™ãƒ¼ã‚¹ ãƒãƒ³ãƒ‰ãƒ«
 my $dbh = undef;
 my $sth = undef;
 
-# •Ï”
-my $nTotalData = 0;		# ƒf[ƒ^ƒx[ƒX‘S‘Ì‚Å‚Ì‘Sƒf[ƒ^”
+# å¤‰æ•°
+my $nTotalData = 0;		# ãƒ‡ãƒ¼ã‚¿ãƒ™ãƒ¼ã‚¹å…¨ä½“ã§ã®å…¨ãƒ‡ãƒ¼ã‚¿æ•°
 
-# ˆê•Ï”
-my $strQuery = undef;	# ƒNƒGƒŠ‚ğs‚¤‚½‚ß‚Ìˆê“I‚ÈƒNƒGƒŠ–½—ß•¶
+# ä¸€æ™‚å¤‰æ•°
+my $strQuery = undef;	# ã‚¯ã‚¨ãƒªã‚’è¡Œã†ãŸã‚ã®ä¸€æ™‚çš„ãªã‚¯ã‚¨ãƒªå‘½ä»¤æ–‡
 
 my $strTmp = "";
 my $nStartEpockSec = 0;
@@ -40,36 +40,36 @@ my @arrWdayStr = ("Sun","Mon","Tue","Wed","Thu","Fri","Sat");
 my $i = 0;
 my $j = 0;
 
-my @row = ();		# ƒNƒGƒŠŒ‹‰Ê‚ğó‚¯‚é”z—ñ
+my @row = ();		# ã‚¯ã‚¨ãƒªçµæœã‚’å—ã‘ã‚‹é…åˆ—
 
-# SQLƒT[ƒo‚ÌDSN’è‹`iDB–¼‚Í‘Î˜b“I‚É“ü—Íˆ—‚ğs‚¤j
+# SQLã‚µãƒ¼ãƒã®DSNå®šç¾©ï¼ˆDBåã¯å¯¾è©±çš„ã«å…¥åŠ›å‡¦ç†ã‚’è¡Œã†ï¼‰
 my $strDbPath = $FindBin::Bin.'/../data/';
 my $strSqlDsn = 'DBI:SQLite:dbname='.$FindBin::Bin.'/../data/';
 my $strDefaultDB = 'accdb.sqlite';
 
-# ‰ŠúƒƒbƒZ[ƒW‚Ì•\¦
+# åˆæœŸãƒ¡ãƒƒã‚»ãƒ¼ã‚¸ã®è¡¨ç¤º
 print("\n=== Delete access data from DB ===\n");
 
-# ˆø”i‘ÎÛ”Nj‚Ìˆ—B‚Ü‚½‚ÍƒRƒ“ƒ\[ƒ‹‚©‚ç‘ÎÛ”NADB–¼‚ğ“Ç‚İ‚Ş
+# å¼•æ•°ï¼ˆå¯¾è±¡å¹´ï¼‰ã®å‡¦ç†ã€‚ã¾ãŸã¯ã‚³ãƒ³ã‚½ãƒ¼ãƒ«ã‹ã‚‰å¯¾è±¡å¹´ã€DBåã‚’èª­ã¿è¾¼ã‚€
 if($#ARGV != 0) {
-	# ƒvƒƒOƒ‰ƒ€‚Ö‚Ìˆø”‚ª‚È‚¢ê‡
+	# ãƒ—ãƒ­ã‚°ãƒ©ãƒ ã¸ã®å¼•æ•°ãŒãªã„å ´åˆ
 	
-	$strDefaultDB = sub_select_dbfile($strDbPath);	# ‘ÎÛ DB ƒtƒ@ƒCƒ‹‚Ì‘I‘ğ
+	$strDefaultDB = sub_select_dbfile($strDbPath);	# å¯¾è±¡ DB ãƒ•ã‚¡ã‚¤ãƒ«ã®é¸æŠ
 	$strSqlDsn .= $strDefaultDB;
 
-	# ‘ÎÛ”N‚Ì‘Î˜b“I“ü—Í
+	# å¯¾è±¡å¹´ã®å¯¾è©±çš„å…¥åŠ›
 	print("input target year (from 2000 to 2032) : ");
 	$_ = <STDIN>;
-	chomp();		# s––‚Ì‰üs‚ğæ‚é
-	$nTargetYear = int($_);		# ®”‚ğæ‚èo‚·
+	chomp();		# è¡Œæœ«ã®æ”¹è¡Œã‚’å–ã‚‹
+	$nTargetYear = int($_);		# æ•´æ•°ã‚’å–ã‚Šå‡ºã™
 
 }
 else
 {
-	# ˆø”‚ª‚ ‚ê‚ÎA‚»‚ê‚ğ‘ÎÛ”N‚Æ‚µ‚Ä“Ç‚İ‚Ş
+	# å¼•æ•°ãŒã‚ã‚Œã°ã€ãã‚Œã‚’å¯¾è±¡å¹´ã¨ã—ã¦èª­ã¿è¾¼ã‚€
 	$nTargetYear = sprintf("%d", $ARGV[0]);
 	
-	# •W€‚ÌDB–¼‚ğ—p‚¢‚é
+	# æ¨™æº–ã®DBåã‚’ç”¨ã„ã‚‹
 	$strSqlDsn .= $strDefaultDB;
 }
 
@@ -84,7 +84,7 @@ if($nTargetYear < 2000 || $nTargetYear > 2032)
 
 print("\nimportant ! : sure to DELETE ? (y/n): ");
 $_ = <STDIN>;
-chomp();	# s––‚Ì‰üs‚ğæ‚é
+chomp();	# è¡Œæœ«ã®æ”¹è¡Œã‚’å–ã‚‹
 if(uc($_) ne "Y")
 {
 	print("info : cancel\n");
@@ -94,19 +94,19 @@ if(uc($_) ne "Y")
 
 print("info : deleting ...\n");
 
-# UNIXŠÔ‚ÅŠJnEI—¹•b‚ğ“Á’è
+# UNIXæ™‚é–“ã§é–‹å§‹ãƒ»çµ‚äº†ç§’ã‚’ç‰¹å®š
 $nStartEpockSec = timelocal(0,0,0,1,0,$nTargetYear-1900);
 $nEndEpockSec = timelocal(59,59,23,31,11,$nTargetYear-1900);
 
 print("target time span : from ".$nStartEpockSec." to ".$nEndEpockSec."\n");
 
-# SQLƒT[ƒo‚ÉÚ‘±
+# SQLã‚µãƒ¼ãƒã«æ¥ç¶š
 $dbh = DBI->connect($strSqlDsn, "", "", {PrintError => 1, AutoCommit => 0}) or die("error : database open error\n");
 
 
 eval{
 
-	# ƒf[ƒ^ƒx[ƒX‘S‘Ì‚Ìƒf[ƒ^”
+	# ãƒ‡ãƒ¼ã‚¿ãƒ™ãƒ¼ã‚¹å…¨ä½“ã®ãƒ‡ãƒ¼ã‚¿æ•°
 	$strQuery = "DELETE FROM acctbl WHERE tm_epock >= '".$nStartEpockSec."' AND tm_epock <= '".$nEndEpockSec."'";
 	$sth = $dbh->prepare($strQuery);
 	if($sth){ $sth->execute();}
@@ -117,23 +117,23 @@ eval{
 
 	print("info : ".$nTotalData." lines is deleted\n");
 
-	# ‘‚«‚İ‚ÌƒRƒ~ƒbƒg
+	# æ›¸ãè¾¼ã¿ã®ã‚³ãƒŸãƒƒãƒˆ
 	$dbh->commit;
 	print("info : DB commit\n");
 
-	# DB‚ÌÄ\’ziƒtƒŠ[ƒXƒy[ƒX‚ğ‹l‚ß‚éj
+	# DBã®å†æ§‹ç¯‰ï¼ˆãƒ•ãƒªãƒ¼ã‚¹ãƒšãƒ¼ã‚¹ã‚’è©°ã‚ã‚‹ï¼‰
 	$dbh->{AutoCommit} = 1;
 	$sth = $dbh->do("VACUUM acctbl");
 
 	print("info : vacuum complete\n");
 
-	# SQLØ’f
+	# SQLåˆ‡æ–­
 	$dbh->disconnect();
 	print("info : DB close nomally\n");
 
 };
 if($@){
-# eval‚É‚æ‚éƒGƒ‰[ƒgƒ‰ƒbƒvFƒGƒ‰[‚Ìˆ—
+# evalã«ã‚ˆã‚‹ã‚¨ãƒ©ãƒ¼ãƒˆãƒ©ãƒƒãƒ—ï¼šã‚¨ãƒ©ãƒ¼æ™‚ã®å‡¦ç†
 	$dbh->rollback;
 	$dbh->disconnect();
 	print("\nError : ".$@."\n");
@@ -144,7 +144,7 @@ if($@){
 exit();
 
 
-# SQLite ƒf[ƒ^ƒx[ƒXƒtƒ@ƒCƒ‹ˆê——‚æ‚èA‘ÎÛƒtƒ@ƒCƒ‹‚ğ‘I‘ğ‚·‚é
+# SQLite ãƒ‡ãƒ¼ã‚¿ãƒ™ãƒ¼ã‚¹ãƒ•ã‚¡ã‚¤ãƒ«ä¸€è¦§ã‚ˆã‚Šã€å¯¾è±¡ãƒ•ã‚¡ã‚¤ãƒ«ã‚’é¸æŠã™ã‚‹
 sub sub_select_dbfile {
 	my $strSearchPath = shift;
 	$strSearchPath .= '*.sqlite';

@@ -1,41 +1,41 @@
 #!/usr/bin/perl
 
-# save this file in << Shift JIS  >> encode !
+# save this file in << utf8  >> encode !
 
 use strict;
 
-# “ú•tƒIƒuƒWƒFƒNƒg‚ğ—p‚¢‚é
+# æ—¥ä»˜ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚’ç”¨ã„ã‚‹
 use Time::Local;
-# ƒf[ƒ^ƒx[ƒXƒIƒuƒWƒFƒNƒg‚ğ—p‚¢‚é
+# ãƒ‡ãƒ¼ã‚¿ãƒ™ãƒ¼ã‚¹ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚’ç”¨ã„ã‚‹
 use DBI;
 
 use URI::Escape;
 use File::Basename;
 use Encode;
 use Encode::Guess;
-use FindBin qw/$Bin/;	# ƒT[ƒoã‚Å‚Ìƒtƒ‹ƒpƒX–¼‚ğ“¾‚é‚½‚ß
+use FindBin qw/$Bin/;	# ã‚µãƒ¼ãƒä¸Šã§ã®ãƒ•ãƒ«ãƒ‘ã‚¹åã‚’å¾—ã‚‹ãŸã‚
 
-# ƒ~ƒŠ•b‚ğ—˜—p‚·‚é
+# ãƒŸãƒªç§’ã‚’åˆ©ç”¨ã™ã‚‹
 use Time::HiRes;
 
-# “ü—ÍCSVƒtƒ@ƒCƒ‹‚ğŒˆ’è‚·‚é•Ï”
+# å…¥åŠ›CSVãƒ•ã‚¡ã‚¤ãƒ«ã‚’æ±ºå®šã™ã‚‹å¤‰æ•°
 my $nTargetYear = 0;
 my $strCsvFilename = $FindBin::Bin.'/../backup/';
 
-# ƒf[ƒ^ƒx[ƒX ƒnƒ“ƒhƒ‹
+# ãƒ‡ãƒ¼ã‚¿ãƒ™ãƒ¼ã‚¹ ãƒãƒ³ãƒ‰ãƒ«
 my $dbh = undef;
 my $sth = undef;
 
-# •Ï”
-my $nTotalData = 0;		# ƒf[ƒ^ƒx[ƒX‘S‘Ì‚Å‚Ì‘Sƒf[ƒ^”
+# å¤‰æ•°
+my $nTotalData = 0;		# ãƒ‡ãƒ¼ã‚¿ãƒ™ãƒ¼ã‚¹å…¨ä½“ã§ã®å…¨ãƒ‡ãƒ¼ã‚¿æ•°
 
 
-# ì‹Æ—p•Ï”
-my $strQuery = undef;	# ƒNƒGƒŠ‚ğs‚¤‚½‚ß‚Ìˆê“I‚ÈƒNƒGƒŠ–½—ß•¶
-my @row = ();		# ƒNƒGƒŠŒ‹‰Ê‚ğó‚¯‚é”z—ñ
+# ä½œæ¥­ç”¨å¤‰æ•°
+my $strQuery = undef;	# ã‚¯ã‚¨ãƒªã‚’è¡Œã†ãŸã‚ã®ä¸€æ™‚çš„ãªã‚¯ã‚¨ãƒªå‘½ä»¤æ–‡
+my @row = ();		# ã‚¯ã‚¨ãƒªçµæœã‚’å—ã‘ã‚‹é…åˆ—
 
 my $strTmp = "";
-my @arrayTmp;		# CSVƒtƒ@ƒCƒ‹‚Ìsƒf[ƒ^‚ğØ‚è•ª‚¯‚½”z—ñ
+my @arrayTmp;		# CSVãƒ•ã‚¡ã‚¤ãƒ«ã®è¡Œãƒ‡ãƒ¼ã‚¿ã‚’åˆ‡ã‚Šåˆ†ã‘ãŸé…åˆ—
 my $tmTmp = timelocal(0,0,0,1,0,0);
 my $tm2000 = timelocal(0,0,0,1,0,2000-1900);	# 2000/1/1 00:00
 my $tm2032 = timelocal(0,0,0,1,0,2032-1900);	# 2032/1/1 00:00
@@ -46,11 +46,11 @@ my $i = 0;
 my $j = 0;
 
 
-my $tmQueryTime = undef;		# ƒNƒGƒŠ‚É‚©‚©‚Á‚½ŠÔ
-my $tmQueryStartTime = undef;	# ƒNƒGƒŠŠJn
-my $tmQueryEndTime = undef;		# ƒNƒGƒŠI—¹
+my $tmQueryTime = undef;		# ã‚¯ã‚¨ãƒªã«ã‹ã‹ã£ãŸæ™‚é–“
+my $tmQueryStartTime = undef;	# ã‚¯ã‚¨ãƒªé–‹å§‹æ™‚åˆ»
+my $tmQueryEndTime = undef;		# ã‚¯ã‚¨ãƒªçµ‚äº†æ™‚åˆ»
 
-# SQLƒT[ƒo‚ÌDSN’è‹`
+# SQLã‚µãƒ¼ãƒã®DSNå®šç¾©
 my $strDbPath = $FindBin::Bin.'/../data/';
 my $strSqlDsn = 'DBI:SQLite:dbname='.$FindBin::Bin.'/../data/';
 my $strDefaultDB = 'accdb.backup.sqlite';
@@ -58,31 +58,31 @@ my $strDefaultDB = 'accdb.backup.sqlite';
 print("\n=== Import access data from CSV file ===\n");
 
 
-# ˆø”i‘ÎÛ”Nj‚Ìˆ—B‚Ü‚½‚ÍƒRƒ“ƒ\[ƒ‹‚©‚ç‘ÎÛ”NADB–¼‚ğ“Ç‚İ‚Ş
+# å¼•æ•°ï¼ˆå¯¾è±¡å¹´ï¼‰ã®å‡¦ç†ã€‚ã¾ãŸã¯ã‚³ãƒ³ã‚½ãƒ¼ãƒ«ã‹ã‚‰å¯¾è±¡å¹´ã€DBåã‚’èª­ã¿è¾¼ã‚€
 if($#ARGV != 0) {
-	# ƒvƒƒOƒ‰ƒ€‚Ö‚Ìˆø”‚ª‚È‚¢ê‡
+	# ãƒ—ãƒ­ã‚°ãƒ©ãƒ ã¸ã®å¼•æ•°ãŒãªã„å ´åˆ
 
 
-	$strDefaultDB = sub_select_dbfile($strDbPath);	# ‘ÎÛ DB ƒtƒ@ƒCƒ‹‚Ì‘I‘ğ
+	$strDefaultDB = sub_select_dbfile($strDbPath);	# å¯¾è±¡ DB ãƒ•ã‚¡ã‚¤ãƒ«ã®é¸æŠ
 	$strSqlDsn .= $strDefaultDB;
 	
-	# ‘ÎÛ”N‚Ì‘Î˜b“I“ü—Í
+	# å¯¾è±¡å¹´ã®å¯¾è©±çš„å…¥åŠ›
 	print("input target year (from 2000 to 2032) : ");
 	$_ = <STDIN>;
-	chomp();		# s––‚Ì‰üs‚ğæ‚é
-	$nTargetYear = int($_);		# ®”‚ğæ‚èo‚·
+	chomp();		# è¡Œæœ«ã®æ”¹è¡Œã‚’å–ã‚‹
+	$nTargetYear = int($_);		# æ•´æ•°ã‚’å–ã‚Šå‡ºã™
 
 }
 else
 {
-	# ˆø”‚ª‚ ‚ê‚ÎA‚»‚ê‚ğ‘ÎÛ”N‚Æ‚µ‚Ä“Ç‚İ‚Ş
+	# å¼•æ•°ãŒã‚ã‚Œã°ã€ãã‚Œã‚’å¯¾è±¡å¹´ã¨ã—ã¦èª­ã¿è¾¼ã‚€
 	$nTargetYear = sprintf("%d", $ARGV[0]);
 	
-	# •W€‚ÌDB–¼‚ğ—p‚¢‚é
+	# æ¨™æº–ã®DBåã‚’ç”¨ã„ã‚‹
 	$strSqlDsn .= $strDefaultDB;
 }
 
-# ƒ^[ƒQƒbƒg”NAo—Íƒtƒ@ƒCƒ‹–¼‚ğŠm’è
+# ã‚¿ãƒ¼ã‚²ãƒƒãƒˆå¹´ã€å‡ºåŠ›ãƒ•ã‚¡ã‚¤ãƒ«åã‚’ç¢ºå®š
 $strCsvFilename = $strCsvFilename . "backup". $nTargetYear . ".csv";
 print("target DB :". $strSqlDsn . "\n");
 print("target year :". $nTargetYear . "\n");
@@ -94,7 +94,7 @@ if($nTargetYear < 2000 || $nTargetYear > 2032)
 	exit();
 }
 
-# CSVƒtƒ@ƒCƒ‹‚Ì‘¶İ‚ğŠm”F
+# CSVãƒ•ã‚¡ã‚¤ãƒ«ã®å­˜åœ¨ã‚’ç¢ºèª
 if(!(-r $strCsvFilename))
 {
 	print("error: CSV file is not exist or not readable\n");
@@ -103,7 +103,7 @@ if(!(-r $strCsvFilename))
 
 print("\nimportant ! : sure to IMPORT ? (y/n): ");
 $_ = <STDIN>;
-chomp();	# s––‚Ì‰üs‚ğæ‚é
+chomp();	# è¡Œæœ«ã®æ”¹è¡Œã‚’å–ã‚‹
 if(uc($_) ne "Y")
 {
 	print("info : cancel\n");
@@ -111,10 +111,10 @@ if(uc($_) ne "Y")
 }
 
 
-# ƒNƒGƒŠ‚É‚©‚©‚éŠÔ‚ğŒv‘ª‚·‚é‚½‚ßAŠJn‚ğ•Û‘¶
+# ã‚¯ã‚¨ãƒªã«ã‹ã‹ã‚‹æ™‚é–“ã‚’è¨ˆæ¸¬ã™ã‚‹ãŸã‚ã€é–‹å§‹æ™‚åˆ»ã‚’ä¿å­˜
 $tmQueryStartTime = Time::HiRes::time();
 
-# SQLƒT[ƒo‚ÉÚ‘±
+# SQLã‚µãƒ¼ãƒã«æ¥ç¶š
 $dbh = DBI->connect($strSqlDsn, "", "", {PrintError => 1, AutoCommit => 0}) or die("error : database open error\n");
 
 eval{
@@ -122,37 +122,37 @@ eval{
 	if(open(IN, "< $strCsvFilename"))
 	{
 
-		$i = 0;		# ƒf[ƒ^”ƒJƒEƒ“ƒ^
+		$i = 0;		# ãƒ‡ãƒ¼ã‚¿æ•°ã‚«ã‚¦ãƒ³ã‚¿
 
 		while(<IN>) {	#********* WHILE LOOP START HERE *********
 			$strTmp = $_;
 			if(length($strTmp) < 10){ next;}
 
 
-	#	CSV‚ÍŸ‚Ì‚æ‚¤‚É”z—ñ‚É“ü—Í‚³‚ê‚é
+	#	CSVã¯æ¬¡ã®ã‚ˆã†ã«é…åˆ—ã«å…¥åŠ›ã•ã‚Œã‚‹
 	#	$count,$year,$mon,$mday,$hour,$min,$sec,$proxy_name,$remip,$userip,$proxy_str,$browser,$referer,$lang,$last_acc_log
 
 			@arrayTmp = split(/,/, $_);
 
-			#”z—ñ—v‘f‚ª8ŒÂ–¢–iIPƒAƒhƒŒƒX€–Ú‚ª–³‚¢j‚Ì‚Æ‚«‚ÍA‚»‚Ìs‚ğƒXƒLƒbƒv
+			#é…åˆ—è¦ç´ ãŒ8å€‹æœªæº€ï¼ˆIPã‚¢ãƒ‰ãƒ¬ã‚¹é …ç›®ãŒç„¡ã„ï¼‰ã®ã¨ãã¯ã€ãã®è¡Œã‚’ã‚¹ã‚­ãƒƒãƒ—
 			if($#arrayTmp < 8) { next;}
 
-			# “ú‚ğUNIX‚É•ÏŠ·
+			# æ—¥æ™‚ã‚’UNIXæ™‚åˆ»ã«å¤‰æ›
 			$tmTmp = timelocal($arrayTmp[6], $arrayTmp[5], $arrayTmp[4], $arrayTmp[3], $arrayTmp[2]-1, $arrayTmp[1]-1900);
 
-			#“ú‚ª‚¨‚©‚µ‚¢ê‡i2000”NˆÈ‘OA2032”NˆÈ~jA‚»‚Ìs‚ğƒXƒLƒbƒv
+			#æ—¥æ™‚ãŒãŠã‹ã—ã„å ´åˆï¼ˆ2000å¹´ä»¥å‰ã€2032å¹´ä»¥é™ï¼‰ã€ãã®è¡Œã‚’ã‚¹ã‚­ãƒƒãƒ—
 			if($tmTmp < $tm2000 || $tmTmp > $tm2032) { next;}
 
-			# —j“ú‚ğ‹‚ß‚é
+			# æ›œæ—¥ã‚’æ±‚ã‚ã‚‹
 			$nWday = (localtime($tmTmp))[6];
 		
-			# ‚»‚Ì“ú‚Ì0‚©‚ç‚Ì•b”
+			# ãã®æ—¥ã®0æ™‚ã‹ã‚‰ã®ç§’æ•°
 			$nDaySeconds = $arrayTmp[4]*60*60 + $arrayTmp[5]*60 + $arrayTmp[6];
 
-			# Šù‚É“o˜^‚³‚ê‚Ä‚¢‚éƒf[ƒ^‚Å‚È‚¢‚©1000s‚¨‚«‚Éƒ`ƒFƒbƒN
+			# æ—¢ã«ç™»éŒ²ã•ã‚Œã¦ã„ã‚‹ãƒ‡ãƒ¼ã‚¿ã§ãªã„ã‹1000è¡ŒãŠãã«ãƒã‚§ãƒƒã‚¯
 			if($i % 1000 == 0)
 			{
-				printf("info : processing ".$i." data ...\n");	# Œo‰ßƒƒbƒZ[ƒW•\¦
+				printf("info : processing ".$i." data ...\n");	# çµŒéãƒ¡ãƒƒã‚»ãƒ¼ã‚¸è¡¨ç¤º
 
 				$strQuery = "select count (*) from acctbl where tm_epock == '".$tmTmp."' and ip == '".$arrayTmp[8]."'";
 				$sth = $dbh->prepare($strQuery);
@@ -168,7 +168,7 @@ eval{
 				if($sth){ $sth->finish();}
 			}
 
-			# SQL•¶‚ğ\’z‚·‚é
+			# SQLæ–‡ã‚’æ§‹ç¯‰ã™ã‚‹
 			$strQuery = "insert into acctbl values(null,".$tmTmp.",".$nWday.",".$nDaySeconds.",'".$arrayTmp[8]."','".&SanitizeString($arrayTmp[7],255)."','".&SanitizeString($arrayTmp[11],255)."','".&SanitizeString($arrayTmp[12],255)."','".$arrayTmp[13]."')";
 			
 			##### DEBUG
@@ -178,42 +178,42 @@ eval{
 			$sth = $dbh->prepare($strQuery);
 			if($sth){ $sth->execute();}
 			if($sth){ $sth->finish();}
-			$i++;			# ƒf[ƒ^”ƒJƒEƒ“ƒ^
+			$i++;			# ãƒ‡ãƒ¼ã‚¿æ•°ã‚«ã‚¦ãƒ³ã‚¿
 
 		}
 		
-		# ‘‚«‚İ‚ÌƒRƒ~ƒbƒg
+		# æ›¸ãè¾¼ã¿ã®ã‚³ãƒŸãƒƒãƒˆ
 		print("info : DB commit\n");
 		$dbh->commit;
 
-		# CSVƒtƒ@ƒCƒ‹‚ğ•Â‚¶‚é
+		# CSVãƒ•ã‚¡ã‚¤ãƒ«ã‚’é–‰ã˜ã‚‹
 		close(IN);
 	}
 
-	# SQLØ’f
+	# SQLåˆ‡æ–­
 	$dbh->disconnect();
 	print("info : DB close nomally\n");
 
 };
 if($@){
-# eval‚É‚æ‚éƒGƒ‰[ƒgƒ‰ƒbƒvFƒGƒ‰[‚Ìˆ—
+# evalã«ã‚ˆã‚‹ã‚¨ãƒ©ãƒ¼ãƒˆãƒ©ãƒƒãƒ—ï¼šã‚¨ãƒ©ãƒ¼æ™‚ã®å‡¦ç†
 	$dbh->rollback;
 	$dbh->disconnect();
 	print("\nError : ".$@."\n");
 	exit();
 }
 
-# ƒNƒGƒŠ‚É‚©‚©‚éŠÔ‚ğŒv‘ª‚·‚é‚½‚ßAI—¹‚ğ•Û‘¶
+# ã‚¯ã‚¨ãƒªã«ã‹ã‹ã‚‹æ™‚é–“ã‚’è¨ˆæ¸¬ã™ã‚‹ãŸã‚ã€çµ‚äº†æ™‚åˆ»ã‚’ä¿å­˜
 $tmQueryEndTime = Time::HiRes::time();
-# ƒNƒGƒŠ‚É‚©‚©‚Á‚½ŠÔ
+# ã‚¯ã‚¨ãƒªã«ã‹ã‹ã£ãŸæ™‚é–“
 $tmQueryTime = $tmQueryEndTime - $tmQueryStartTime;
 
 
 print("info : ".$i." lines added, process time is ".$tmQueryTime." sec\n");
 
-# ‘ƒf[ƒ^”‚ğ“¾‚éi•\¦—pj
+# ç·ãƒ‡ãƒ¼ã‚¿æ•°ã‚’å¾—ã‚‹ï¼ˆè¡¨ç¤ºç”¨ï¼‰
 eval{
-	# SQLƒT[ƒo‚ÉÚ‘±
+	# SQLã‚µãƒ¼ãƒã«æ¥ç¶š
 	$dbh = DBI->connect($strSqlDsn, "", "", {PrintError => 1, AutoCommit => 0});
 	if(!$dbh){
 		print("error : database open error\n");
@@ -234,7 +234,7 @@ eval{
 
 };
 if($@){
-# eval‚É‚æ‚éƒGƒ‰[ƒgƒ‰ƒbƒvFƒGƒ‰[‚Ìˆ—
+# evalã«ã‚ˆã‚‹ã‚¨ãƒ©ãƒ¼ãƒˆãƒ©ãƒƒãƒ—ï¼šã‚¨ãƒ©ãƒ¼æ™‚ã®å‡¦ç†
 	$dbh->disconnect();
 	print("Error : ".$@."\n");
 	exit();
@@ -245,16 +245,16 @@ if($@){
 exit();
 
 
-# SQLŠi”[‚É—LŠQ‚É‚È‚é•¶š‚ğœ‹‚Ü‚½‚ÍƒGƒ“ƒR[ƒh‚·‚é
+# SQLæ ¼ç´ã«æœ‰å®³ã«ãªã‚‹æ–‡å­—ã‚’é™¤å»ã¾ãŸã¯ã‚¨ãƒ³ã‚³ãƒ¼ãƒ‰ã™ã‚‹
 # SanitizeString(char *string, int maxlength);
 sub SanitizeString
 {
-	# ƒ[ƒJƒ‹•Ï”‚Éˆø”‚ğ‘ã“ü
+	# ãƒ­ãƒ¼ã‚«ãƒ«å¤‰æ•°ã«å¼•æ•°ã‚’ä»£å…¥
 	my($strTmp) = $_[0];
 
 	my $enc = guess_encoding($strTmp, qw/euc-jp shiftjis 7bit-jis/);
 	if(!ref($enc))
-	{	# UTF8‚Íí‚É”»’èƒGƒ‰[‚É‚È‚é‚½‚ß
+	{	# UTF8ã¯å¸¸ã«åˆ¤å®šã‚¨ãƒ©ãƒ¼ã«ãªã‚‹ãŸã‚
 		$strTmp = encode('shiftjis', Encode::decode('utf8', $strTmp));
 	}
 	else
@@ -262,30 +262,30 @@ sub SanitizeString
 		$strTmp = encode('shiftjis', decode($enc->name, $strTmp));
 	}
 
-	$strTmp =~ s/,//eg;				# ƒRƒ“ƒ}œ‹
-	$strTmp =~ s/\x27//eg;			# ƒVƒ“ƒOƒ‹ƒNƒI[ƒgifjœ‹
-	$strTmp =~ s/\x22//eg;			# ƒ_ƒuƒ‹ƒNƒI[ƒgihjœ‹
-	$strTmp =~ tr/\x0-\x1f//d;		# 0x00`0x1f‚ÌƒoƒCƒiƒŠœ‹
+	$strTmp =~ s/,//eg;				# ã‚³ãƒ³ãƒé™¤å»
+	$strTmp =~ s/\x27//eg;			# ã‚·ãƒ³ã‚°ãƒ«ã‚¯ã‚ªãƒ¼ãƒˆï¼ˆâ€™ï¼‰é™¤å»
+	$strTmp =~ s/\x22//eg;			# ãƒ€ãƒ–ãƒ«ã‚¯ã‚ªãƒ¼ãƒˆï¼ˆâ€ï¼‰é™¤å»
+	$strTmp =~ tr/\x0-\x1f//d;		# 0x00ã€œ0x1fã®ãƒã‚¤ãƒŠãƒªé™¤å»
 	
-	# •¶š—ñ––’[‚ÉCR/LF‚ª‚ ‚éê‡‚Íœ‹‚·‚é
+	# æ–‡å­—åˆ—æœ«ç«¯ã«CR/LFãŒã‚ã‚‹å ´åˆã¯é™¤å»ã™ã‚‹
 #	chomp($strTmp);
 
-	# URLƒGƒ“ƒR[ƒh
+	# URLã‚¨ãƒ³ã‚³ãƒ¼ãƒ‰
 #	$strTmp = uri_escape($strTmp);
-	# ƒVƒ“ƒOƒ‹ƒNƒI[ƒgi'j“™‚ª•W€‚Å‚ÍƒGƒ“ƒR[ƒh‚³‚ê‚È‚¢‚±‚Æ‚Ì‘Îˆ
+	# ã‚·ãƒ³ã‚°ãƒ«ã‚¯ã‚ªãƒ¼ãƒˆï¼ˆ'ï¼‰ç­‰ãŒæ¨™æº–ã§ã¯ã‚¨ãƒ³ã‚³ãƒ¼ãƒ‰ã•ã‚Œãªã„ã“ã¨ã®å¯¾å‡¦
 #	$strTmp = uri_escape($strTmp, "'");
 
-	# URLƒGƒ“ƒR[ƒh‚ğÅ¬ŒÀ‚¾‚¯s‚¤
+	# URLã‚¨ãƒ³ã‚³ãƒ¼ãƒ‰ã‚’æœ€å°é™ã ã‘è¡Œã†
 	$strTmp = uri_escape($strTmp, "%|");
 
-	# •¶š—ñ‚ğÅ‘å’·‚³‚ÅØ‚èÌ‚Ä‚é
+	# æ–‡å­—åˆ—ã‚’æœ€å¤§é•·ã•ã§åˆ‡ã‚Šæ¨ã¦ã‚‹
 	$strTmp = substr($strTmp, 0, $_[1]);
 	
 	return $strTmp;
 }
 
 
-# SQLite ƒf[ƒ^ƒx[ƒXƒtƒ@ƒCƒ‹ˆê——‚æ‚èA‘ÎÛƒtƒ@ƒCƒ‹‚ğ‘I‘ğ‚·‚é
+# SQLite ãƒ‡ãƒ¼ã‚¿ãƒ™ãƒ¼ã‚¹ãƒ•ã‚¡ã‚¤ãƒ«ä¸€è¦§ã‚ˆã‚Šã€å¯¾è±¡ãƒ•ã‚¡ã‚¤ãƒ«ã‚’é¸æŠã™ã‚‹
 sub sub_select_dbfile {
 	my $strSearchPath = shift;
 	$strSearchPath .= '*.sqlite';
