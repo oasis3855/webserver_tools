@@ -11,6 +11,7 @@
 #
 # version 3.0, 2011/03/26  utf8化
 # version 3.0.1, 2012/06/24  Google Chart Tool API verup
+# version 3.1, 2012/06/26  ApacheLog解析のDBより、総アクセス数を得る
 #
 # GNU GPL Free Software
 #
@@ -61,6 +62,10 @@ if($flag_charcode eq 'shiftjis'){
 	binmode(STDERR, "encoding(sjis)");
 }
 
+# サーバ環境に合わせた設定（グローバル変数に読み込む）
+require '../include/setup.pl';
+our $strApachelogSqlDsn;	# 日毎アクセス数統計にApacheLogを用いる場合のDSN文字列
+
 # SQLサーバのDSN定義
 my $strSqlDsn = 'DBI:SQLite:dbname='.$FindBin::Bin.'/../data/';
 my $strDefaultDB = 'accdb.sqlite';
@@ -85,6 +90,7 @@ my $tm_lapse_query_start = undef;	# クエリ開始時刻
 my $nTotalData = 0;		# データベース全体での全データ数
 my @arr_nSubTotalData = ();	# 12ヶ月の1ヶ月ごとのデータ数
 my @arr_nDayTotalData = ();	# 直近30日間の1日毎のデータ数
+my @arr_nDayTotalDataAll = ();	# 直近30日間の1日毎のデータ数（ApacheLogを用いた全アクセス数）
 my @arr_BrowserStatData = ();	# 統計データ（ブラウザ）
 my @arr_OsStatData = ();	# 統計データ（OS）
 my @arr_PopularPage = ();	# 統計データ（アクセス数の多いページ順）
@@ -165,6 +171,8 @@ else
 # クエリにかかる時間を計測するため、開始時刻を保存
 $tm_lapse_query_start = Time::HiRes::time();
 
+#**************
+# ログDBからの統計データの抽出
 
 my $dbh = undef;
 eval{
@@ -182,7 +190,8 @@ eval{
 	$sth->finish() or die(DBI::errstr);
 	$sth = undef;	# 再利用のため初期化
 
-	print("info : total data ".$nTotalData."\n");
+	print("open DB : ".$strSqlDsn."\n".
+			"info : total data ".$nTotalData."\n");
 
 	print("info : monthly total access stat processing ...\n");
 
@@ -353,6 +362,57 @@ if($@){
 	exit;
 }
 
+
+#**************
+# ApacheLog DBからの、総アクセス数の読み込み
+
+$dbh = undef;
+eval{
+
+	if($strApachelogSqlDsn ne ''){
+
+		# SQLサーバに接続
+		$dbh = DBI->connect($strApachelogSqlDsn, "", "", {PrintError => 1, AutoCommit => 0}) or die(DBI::errstr);
+
+		print("open DB : ".$strApachelogSqlDsn."\n");
+
+		##############################
+		# 直近 過去30日間の1日毎のアクセス数
+		my $str_query = "SELECT ext_html + ext_php FROM stat WHERE date >= ? AND date <= ?";
+		my $sth = $dbh->prepare($str_query) or die(DBI::errstr);
+		for($i=0; $i<30; $i++)
+		{
+			$nStartEpockSec = $tm_start - 24*60*60*($i+1);
+			$nEndEpockSec = $tm_start - 24*60*60*$i;
+			$sth->bind_param(1, $nStartEpockSec, SQL_INTEGER) or die(DBI::errstr);
+			$sth->bind_param(2, $nEndEpockSec, SQL_INTEGER) or die(DBI::errstr);
+			$sth->execute() or die(DBI::errstr);
+			@row = $sth->fetchrow_array();
+			$arr_nDayTotalDataAll[$i] = defined($row[0]) ? $row[0] : 0;
+		}
+		$sth->finish() or die(DBI::errstr);
+		$sth = undef;	# 再利用のため初期化
+
+
+		# SQL切断
+		$dbh->disconnect() or die(DBI::errstr);
+		print("info : database close nomally\n");
+
+	}
+
+};
+if($@){
+	# evalによるDBエラートラップ：エラー時の処理
+	if(defined($dbh)){ $dbh->disconnect(); }
+	my $str = $@;
+	chomp($str);
+	print("===SQLERROR (counter) (".$str.")===");
+
+	exit;
+}
+
+
+
 # クエリにかかった時間
 $tm_lapse_query = Time::HiRes::time() - $tm_lapse_query_start;
 
@@ -398,11 +458,21 @@ if(open(OUT, "> $str_filepath_out")){
 	$strTmp .= "\n\t\t]);\n";
 
 	#過去30日間アクセス数グラフ
-	$strTmp .= "\t\tvar data_dayaccess = new google.visualization.arrayToDataTable([\n".
-		"\t\t\t['日前', 'アクセス数'],\n";
-	for($j=0; $j<30; $j++)
-	{
-		$strTmp .= "\t\t\t['-".(30-$j-1)."日', ".$arr_nDayTotalData[30-$j-1]."],\n";
+	if($strApachelogSqlDsn ne ''){
+		$strTmp .= "\t\tvar data_dayaccess = new google.visualization.arrayToDataTable([\n".
+			"\t\t\t['日前', '重複排除アクセス数', '総アクセス数'],\n";
+		for($j=0; $j<30; $j++)
+		{
+			$strTmp .= "\t\t\t['-".(30-$j-1)."日', ".$arr_nDayTotalData[30-$j-1].",".$arr_nDayTotalDataAll[30-$j-1]."],\n";
+		}
+	}
+	else{
+		$strTmp .= "\t\tvar data_dayaccess = new google.visualization.arrayToDataTable([\n".
+			"\t\t\t['日前', '重複排除アクセス数'],\n";
+		for($j=0; $j<30; $j++)
+		{
+			$strTmp .= "\t\t\t['-".(30-$j-1)."日', ".$arr_nDayTotalData[30-$j-1]."],\n";
+		}
 	}
 	chop($strTmp);   # 最後の改行を除去
 	chop($strTmp);   # 最後のコンマを除去
@@ -463,8 +533,8 @@ if(open(OUT, "> $str_filepath_out")){
 		"\t\tvar chart_allaccess = new google.visualization.AreaChart(document.getElementById('google_graph_allaccess'));\n".
 		"\t\tchart_allaccess.draw(data_allaccess, {width: 700, height: 200, is3D: true, backgroundColor: '".$strHtmlBackgroundColor."', legendBackgroundColor: '".$strHtmlBackgroundColor."', axisColor: '#e5ad60', focusBorderColor: '#ff0000', colors: ['red'], legendFontSize: 10, titleFontSize: 18, axisFontSize: 12, title: '1ヶ月毎の日平均アクセス数', titleY: '(1日平均)'});\n\n".
 
-		"\t\tvar chart_dayaccess = new google.visualization.AreaChart(document.getElementById('google_graph_dayaccess'));\n".
-		"\t\tchart_dayaccess.draw(data_dayaccess, {width: 700, height: 200, is3D: true, backgroundColor: '".$strHtmlBackgroundColor."', legendBackgroundColor: '".$strHtmlBackgroundColor."', axisColor: '#e5ad60', focusBorderColor: '#ff0000', colors: ['red'], legendFontSize: 10, titleFontSize: 18, axisFontSize: 12, title: '直近30日間の日毎アクセス数', titleY: '(件)'});\n\n".
+		"\t\tvar chart_dayaccess = new google.visualization.LineChart(document.getElementById('google_graph_dayaccess'));\n".
+		"\t\tchart_dayaccess.draw(data_dayaccess, {width: 700, height: 200, is3D: true, backgroundColor: '".$strHtmlBackgroundColor."', legendBackgroundColor: '".$strHtmlBackgroundColor."', axisColor: '#e5ad60', focusBorderColor: '#ff0000', colors: ['red','orange'], legendFontSize: 10, titleFontSize: 18, axisFontSize: 12, title: '直近30日間の日毎アクセス数', titleY: '(件)'});\n\n".
 
 		"\t\tvar chart_browser = new google.visualization.LineChart(document.getElementById('google_graph_browser'));\n".
 		"\t\tchart_browser.draw(data_browser, {width: 700, height: 400, is3D: true, backgroundColor: '".$strHtmlBackgroundColor."', legendBackgroundColor: '".$strHtmlBackgroundColor."', axisColor: '#e5ad60', focusBorderColor: '#ff0000', legendFontSize: 10, titleFontSize: 18, axisFontSize: 12, title: 'ブラウザ種別統計', titleY: '(%)'});\n\n".
@@ -561,6 +631,9 @@ if(open(OUT, "> $str_filepath_out")){
 	print(OUT  "\n\t</tr>\n</table>\n");
 	print(OUT  "<p>&nbsp;</p>\n");
 	print(OUT  "<div id=\"google_graph_dayaccess\"></div>\n");
+	if($strApachelogSqlDsn ne ''){
+		print(OUT "<p style=\"font-size:8pt;\">総アクセス数：Apacheのアクセスログよりhtmlとphpファイルのアクセス数合計<br />重複排除アクセス数：同一IPアドレスからの連続アクセスを重複カウントしないアクセス数</p>\n");
+	}
 	print(OUT  "<p>&nbsp;</p>\n");
 
 	print(OUT  "<h2>ブラウザ集計</h2>\n");

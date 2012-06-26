@@ -24,3 +24,11 @@ our @arrHideReferer = (
 		['http://www.example.com', ''],
 		['http://example.com' => '']
 		);
+
+# 「Apache Webサーバのログからエラー行を抽出してHTML化するツール」のDBファイルの指定
+# parse-apache-log.sqlite を stat_monthly.plで利用するための設定
+# この文字列を ''（空白）にすると、Apache Logを使わないモードとなる。
+#our $strApachelogSqlDsn = 'DBI:SQLite:dbname=/home/user/data/parse-apache-log.sqlite';
+our $strApachelogSqlDsn = '';
+
+1
