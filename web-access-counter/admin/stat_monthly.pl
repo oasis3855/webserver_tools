@@ -63,7 +63,7 @@ if($flag_charcode eq 'shiftjis'){
 }
 
 # サーバ環境に合わせた設定（グローバル変数に読み込む）
-require '../include/setup.pl';
+require $FindBin::Bin.'/../include/setup.pl';
 our $strApachelogSqlDsn;	# 日毎アクセス数統計にApacheLogを用いる場合のDSN文字列
 
 # SQLサーバのDSN定義

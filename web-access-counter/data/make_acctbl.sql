@@ -1,6 +1,6 @@
 /* make acctbl table */
 /* usage : sqlite3 accdb.sqlite < make_acctbl.sql */
-create table acctbl (
+create table if not exists acctbl (
 	idx			integer primary key autoincrement,
 	tm_epock	integer not null,
 	weekday		integer not null,

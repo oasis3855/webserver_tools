@@ -22,15 +22,12 @@ create table if not exists statbrowsertbl (
 delete from statbrowsertbl;
 
 /* initial data */
-insert into statbrowsertbl (pattern, real_name) values ('MSIE 4.', 'MSIE 4');
-insert into statbrowsertbl (pattern, real_name) values ('MSIE 5.', 'MSIE 5.x');
 insert into statbrowsertbl (pattern, real_name) values ('MSIE 6.', 'MSIE 6');
 insert into statbrowsertbl (pattern, real_name) values ('MSIE 7.', 'MSIE 7');
 insert into statbrowsertbl (pattern, real_name) values ('MSIE 8.', 'MSIE 8');
 insert into statbrowsertbl (pattern, real_name) values ('MSIE 9.', 'MSIE 9');
-insert into statbrowsertbl (pattern, real_name) values ('Firefox/2.', 'Firefox 2');
-insert into statbrowsertbl (pattern, real_name) values ('Firefox/3.', 'Firefox 3');
-insert into statbrowsertbl (pattern, real_name) values ('Firefox/4.', 'Firefox 4');
+insert into statbrowsertbl (pattern, real_name) values ('MSIE 10.', 'MSIE 10');
+insert into statbrowsertbl (pattern, real_name) values ('Firefox', 'Firefox');
 insert into statbrowsertbl (pattern, real_name) values ('Opera', 'Opera');
 insert into statbrowsertbl (pattern, real_name) values ('Chrome/', 'Chrome');
 
