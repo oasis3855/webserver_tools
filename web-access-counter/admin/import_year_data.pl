@@ -160,10 +160,19 @@ eval{
 				my @row = $sth->fetchrow_array();
 				if($row[0] != 0)
 				{
-					$dbh->rollback;
-					$dbh->disconnect();
-					print("error : same data exist\n");
-					exit();
+					printf("\nsame data is detected on date=%04d/%02d/%02d %02d:%02d:%02d ip=%s . force continue ? (y/n): ",
+						$arrayTmp[1], $arrayTmp[2], $arrayTmp[3], $arrayTmp[4], $arrayTmp[5], $arrayTmp[6], $arrayTmp[8]);
+					$_ = <STDIN>;
+					chomp();	# 行末の改行を取る
+					if(uc($_) ne "Y")
+					{
+						if($sth){ $sth->finish();}
+						# DBをロールバックして処理終了する
+						$dbh->rollback;
+						$dbh->disconnect();
+						print("error : same data exist\n");
+						exit();
+					}
 				}
 				if($sth){ $sth->finish();}
 			}
