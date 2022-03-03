@@ -1,0 +1,5 @@
+AuthType        Basic
+AuthUserFile    /home/user/.htpasswd
+AuthGroupFile   /dev/null
+AuthName        "You must login"
+require         valid-user
